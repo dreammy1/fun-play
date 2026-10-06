@@ -2,9 +2,9 @@ import baseApi from "../../baseApi";
 
 const gameApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
-    addGame: builder.mutation({
+    upsertGame: builder.mutation({
       query: (gameData) => ({
-        url: "/games",
+        url: "/games/upsert",
         method: "POST",
         body: gameData,
       }),
@@ -40,6 +40,15 @@ const gameApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: ["games"],
     }),
+
+    addGame: builder.mutation({
+      query: (gameData) => ({
+        url: "/games",
+        method: "POST",
+        body: gameData,
+      }),
+      invalidatesTags: ["games"],
+    }),
   }),
 });
 
@@ -49,4 +58,5 @@ export const {
   useUpdateGameMutation,
   useDeleteGameMutation,
   useToggleGameStatusMutation,
+  useUpsertGameMutation,
 } = gameApi;

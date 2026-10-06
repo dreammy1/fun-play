@@ -65,11 +65,11 @@ module.exports = (depositPromotionsCollection, depositPaymentMethodCollection) =
   // Create a new deposit promotion
   router.post("/deposit-promotion", async (req, res) => {
     try {
-    //  console.log("Incoming request body:", req.body); // Debug log
+    //  // console.log("Incoming request body:", req.body); // Debug log
 
       const { title, title_bd, description, description_bd, promotion_bonuses, img } = req.body;
 
-      console.log("Received data:", req.body);
+      // console.log("Received data:", req.body);
       
 
       // Validate required fields with specific errors
@@ -152,7 +152,7 @@ module.exports = (depositPromotionsCollection, depositPaymentMethodCollection) =
   // Update a deposit promotion
   router.put("/deposit-promotion/:id", async (req, res) => {
     try {
-      console.log("Incoming request body:", req.body); // Debug log
+      // console.log("Incoming request body:", req.body); // Debug log
 
       if (!ObjectId.isValid(req.params.id)) {
         return res.status(400).json({ error: "Invalid promotion ID" });

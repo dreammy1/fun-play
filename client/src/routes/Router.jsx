@@ -32,6 +32,7 @@ import AddDepositMethods from "@/components/dashboard/Dashboard-Page/Add-Deposit
 import DepositPromotion from "@/components/dashboard/Dashboard-Page/DepositPromotion/DepositPromotion";
 import DepositHistory from "@/components/dashboard/Dashboard-Page/Deposit-History/DepositHistory";
 import AddWithdrawMethods from "@/components/dashboard/Dashboard-Page/Add-Withdrow-Methods/AddWithdrowMethods";
+import GameHistory from "@/components/dashboard/Dashboard-Page/Game-History/GameHistory";
 import AdminLogin from "@/pages/AdminLogin";
 import WithdrawalHistory from "@/components/dashboard/Dashboard-Page/Withdrawal-History/WithdrawalHistory";
 import History from "./../components/dashboard/profile/history/History";
@@ -56,6 +57,17 @@ import UserDetails from "@/components/dashboard/Dashboard-Page/Users/UserDetails
 import ProfileAccount from "@/pages/home/profileAccount/profileAccount";
 import BettingHistory from "@/components/dashboard/profile/BettingHistory/BettingHistory";
 import WalletHistory from "@/components/dashboard/profile/WalletHistory/WalletHistory";
+import AdminProfile from "@/pages/dashboard/AdminProfile";
+import UploadGameAutomation from "@/pages/dashboard/UploadGameAutomation";
+import WelcomeBonus from "@/pages/dashboard/bonuses/WelcomeBonus";
+import ReferBonus from "@/pages/dashboard/bonuses/ReferBonus";
+import WithdrawSetting from "@/pages/dashboard/withdrawSetting";
+import GameNews from "@/components/dashboard/game-news/GameNews";
+import JustDemoPage from "@/pages/home/justDemoPage/JustDemoPage";
+import OpayApi from "@/pages/dashboard/opay/OpayApi";
+import OpayDeposit from "@/pages/dashboard/OpayDeposit";
+import DeviceMonitoring from "@/pages/dashboard/opay/DeviceMonitoring";
+import SocialLinks from "@/pages/dashboard/SocialLinks";
 
 const router = createBrowserRouter([
   {
@@ -66,8 +78,13 @@ const router = createBrowserRouter([
         path: "/",
         element: <Home />,
       },
+    
       {
-        path: "/demogame/:id",
+        path: "/just-demo",
+        element: <JustDemoPage />,
+      },
+      {
+        path: "/livegame/:id",
         element: <DemoGame />,
       },
       {
@@ -190,9 +207,22 @@ const router = createBrowserRouter([
         path: "",
         element: <DashboardHome />,
       },
+      {
+        path: "refer-bonuses",
+        element: <ReferBonus />,
+      },
       { path: "home-control", element: <HomeControl /> },
+      { path: "admin-profile", element: <AdminProfile /> },
       { path: "add-category", element: <AddCategories /> },
       { path: "add-game", element: <AddGame /> },
+      { path: "opay/api", element: <OpayApi /> },
+      { path: "opay-deposit", element: <OpayDeposit /> },
+      { path: "opay/devices", element: <DeviceMonitoring /> },
+      { path: "social-links", element: <SocialLinks /> },
+      {
+        path: "welcome-bonuses",
+        element: <WelcomeBonus />,
+      },
       {
         path: "depositmethod",
         element: <AddDepositMethods />, // Add the new route
@@ -211,8 +241,25 @@ const router = createBrowserRouter([
         element: <AddWithdrawMethods />, // Add the new route
       },
       {
+        path: "withdraw-setting",
+        element: <WithdrawSetting />, // Add the new route
+      },
+      {
+        path: "game-news",
+        element: <GameNews />, // Add the new route
+      },
+
+      {
         path: "WithdrawalHistory",
         element: <WithdrawalHistory />, // Add the new route
+      },
+      {
+        path: "uploadGameAutomation",
+        element: <UploadGameAutomation />, // Add the new route
+      },
+      {
+        path: "gameHistory",
+        element: <GameHistory />, // Add the new route
       },
       {
         path: "games-api/sports-live-tv",
@@ -274,11 +321,10 @@ const router = createBrowserRouter([
         path: "all-user",
         element: <AllUser />, // Add the new route
       },
-     {
-      path: "userDetails/:userId",
-      element: <UserDetails />,
-    }
-
+      {
+        path: "userDetails/:userId",
+        element: <UserDetails />,
+      },
     ],
   },
   {

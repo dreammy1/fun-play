@@ -30,7 +30,7 @@ const VideoSlider = () => {
         // Map data to match bannerImages structure
         const formattedImages = desktopImages.map((item, index) => ({
           id: index + 1,
-          image: item.image ? `${baseURL}${item.image}` : fallbackImage,
+          image: item.image && `${baseURL}${item.image}` ,
           videoId: item.link || "",
         }));
         setBannerImages(formattedImages);
@@ -105,7 +105,7 @@ const VideoSlider = () => {
               className="h-full w-full object-fit rounded-lg"
               src={bannerImages[currentIndex].image}
               alt={`Banner ${bannerImages[currentIndex].id}`}
-              onError={(e) => (e.target.src = fallbackImage)} // Fallback on image error
+             // onError={(e) => (e.target.src = fallbackImage)} // Fallback on image error
             />
             {bannerImages[currentIndex].videoId && (
               <iframe

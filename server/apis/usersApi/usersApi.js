@@ -1,3 +1,13 @@
+// Helper to generate unique referId
+function generateReferId() {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  let id = "GMJ";
+  for (let i = 0; i < 7; i++) {
+    id += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return id;
+}
+
 const express = require("express");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
@@ -7,7 +17,8 @@ const sendEmail = require("../../emailService");
 const usersApi = (
   usersCollection,
   homeControlsCollection,
-  withdrawTransactionsCollection
+  withdrawTransactionsCollection,
+  gamesCollection
 ) => {
   const router = express.Router();
   const jwtSecret = process.env.JWT_SECRET;
@@ -35,7 +46,141 @@ const usersApi = (
     }
   };
 
-  // Register a new user
+  // Redeem refer wallet: merge referWallet into balance if above minWithdraw
+  router.post("/redeem-refer-wallet", authenticateToken, async (req, res) => {
+    try {
+      const userId = req.body.userId;
+      const user = await usersCollection.findOne({ _id: new ObjectId(userId) });
+      if (!user) {
+        return res
+          .status(404)
+          .json({ success: false, message: "User not found" });
+      }
+
+      console.log(user);
+
+      const referWallet = user.referWallet || 0;
+      // Get refer bonus config
+      const config = await req.app.locals.db
+        .collection("settings")
+        .findOne({ type: "refer_bonus", active: true });
+      const minWithdraw = config?.minWithdraw || 0;
+      if (referWallet < minWithdraw) {
+        return res.status(400).json({
+          success: false,
+          message: `You need at least ৳${minWithdraw} to redeem.`,
+        });
+      }
+      // Merge referWallet into balance, set referWallet to 0
+      const result = await usersCollection.updateOne(
+        { _id: new ObjectId(userId) },
+        { $inc: { balance: referWallet }, $set: { referWallet: 0 } }
+      );
+      return res.json({
+        success: true,
+        message: `Redeemed ৳${referWallet} to your balance.`,
+        amount: referWallet,
+      });
+    } catch (err) {
+      return res
+        .status(500)
+        .json({ success: false, message: "Server error", error: err.message });
+    }
+  });
+
+  // Admin: Set or update welcome bonus (amount, active)
+  // Admin: Set or update refer bonus (amount, active)
+  router.post("/admin/set-refer-bonus", async (req, res) => {
+    const { amount, active, minWithdraw } = req.body;
+    if (typeof amount !== "number" || amount <= 0) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid bonus amount" });
+    }
+    try {
+      const result = await req.app.locals.db.collection("settings").updateOne(
+        { type: "refer_bonus" },
+        {
+          $set: {
+            amount,
+            active: !!active,
+            minWithdraw: typeof minWithdraw === "number" ? minWithdraw : 0,
+            updatedAt: new Date(),
+          },
+          $setOnInsert: { createdAt: new Date() },
+        },
+        { upsert: true }
+      );
+      res.json({ success: true, message: "Refer bonus updated", result });
+    } catch (err) {
+      res
+        .status(500)
+        .json({ success: false, message: "DB error", error: err.message });
+    }
+  });
+
+  // Public: Get refer bonus config
+  router.get("/public/refer-bonus", async (req, res) => {
+    try {
+      const bonus = await req.app.locals.db
+        .collection("settings")
+        .findOne({ type: "refer_bonus", active: true });
+      res.json({ success: true, bonus });
+    } catch (err) {
+      res
+        .status(500)
+        .json({ success: false, message: "DB error", error: err.message });
+    }
+  });
+
+  // Get user by referId
+  router.get("/refer/:referId", async (req, res) => {
+    const { referId } = req.params;
+    if (!referId) return res.status(400).json({ error: "No referId provided" });
+    const user = await usersCollection.findOne({ referId });
+    if (!user) return res.status(404).json({ error: "Refer user not found" });
+    res.json({ success: true, user });
+  });
+
+  router.post("/admin/set-welcome-bonus", async (req, res) => {
+    const { amount, active } = req.body;
+    if (typeof amount !== "number" || amount <= 0) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid bonus amount" });
+    }
+    try {
+      const result = await req.app.locals.db.collection("settings").updateOne(
+        { type: "welcome_bonus" },
+        {
+          $set: { amount, active: !!active, updatedAt: new Date() },
+          $setOnInsert: { createdAt: new Date() },
+        },
+        { upsert: true }
+      );
+      res.json({ success: true, message: "Welcome bonus updated", result });
+    } catch (err) {
+      res
+        .status(500)
+        .json({ success: false, message: "DB error", error: err.message });
+    }
+  });
+
+  // Public: Get welcome bonus config
+  router.get("/public/welcome-bonus", async (req, res) => {
+    try {
+      const bonus = await req.app.locals.db
+        .collection("settings")
+        .findOne({ type: "welcome_bonus", active: true });
+      res.json({ success: true, bonus });
+    } catch (err) {
+      res
+        .status(500)
+        .json({ success: false, message: "DB error", error: err.message });
+    }
+  });
+
+  // Register a new user (with welcome bonus if active)
   router.post("/register", async (req, res) => {
     const userInfo = req.body;
     if (!userInfo?.username || !userInfo?.password) {
@@ -45,17 +190,57 @@ const usersApi = (
     }
     try {
       const existingUser = await usersCollection.findOne({
-        username: userInfo?.username,
+        $or: [{ username: userInfo?.username }, { number: userInfo?.phone }],
       });
       if (existingUser)
         return res.status(400).json({ error: "User already exists" });
+      // Generate unique referId
+      let referId = userInfo.referId || generateReferId();
+      // Ensure referId is unique
+      while (await usersCollection.findOne({ referId })) {
+        referId = generateReferId();
+      }
       const hashedPassword = await bcrypt.hash(userInfo?.password, 10);
       const newUser = {
         ...userInfo,
         password: hashedPassword,
         role: "user",
+        balance: 0,
+        referId,
+        referWallet: 0,
       };
       newUser.createdAt = new Date();
+      // Welcome bonus
+      const bonus = await req.app.locals.db
+        .collection("settings")
+        .findOne({ type: "welcome_bonus", active: true });
+      if (bonus && bonus.amount > 0) {
+        newUser.balance = bonus.amount;
+        newUser.welcomeBonusReceived = true;
+        newUser.welcomeBonusAmount = bonus.amount;
+        newUser.welcomeBonusAt = new Date();
+      }
+      // Referral bonus logic
+      if (userInfo.referralCode) {
+        const parent = await usersCollection.findOne({
+          referId: userInfo.referralCode,
+        });
+        if (parent) {
+          // Get refer bonus config
+          const referBonus = await req.app.locals.db
+            .collection("settings")
+            .findOne({ type: "refer_bonus", active: true });
+          if (referBonus && referBonus.amount > 0) {
+            await usersCollection.updateOne(
+              { _id: parent._id },
+              { $inc: { referWallet: referBonus.amount } }
+            );
+            newUser.referredBy = parent._id;
+            newUser.referBonusAmount = referBonus.amount;
+            newUser.referBonusAt = new Date();
+          }
+        }
+      }
       const result = await usersCollection.insertOne(newUser);
       res.status(201).send(result);
     } catch (error) {
@@ -216,6 +401,206 @@ const usersApi = (
     }
   });
 
+  // ? get the user balance
+  router.post("/get-user-balance", async (req, res) => {
+    try {
+      const { user_id } = req.body;
+
+      if (!user_id || !ObjectId.isValid(user_id)) {
+        return res
+          .status(400)
+          .json({ success: false, message: "Valid user_id is required." });
+      }
+
+      const user = await usersCollection.findOne(
+        { _id: new ObjectId(user_id) },
+        { projection: { balance: 1 } }
+      );
+
+      if (!user) {
+        return res
+          .status(404)
+          .json({ success: false, message: "User not found!" });
+      }
+
+      res.json({
+        success: true,
+        data: {
+          balance: user.balance || 0,
+        },
+      });
+    } catch (error) {
+      console.error("Error in get-user-balance:", error);
+      res.status(500).json({
+        success: false,
+        message: "Server error",
+        error:
+          process.env.NODE_ENV === "development" ? error.message : undefined,
+      });
+    }
+  });
+
+  // Get user game history with game information, sorted by latest playedAt
+  router.post("/get-user-game-history", async (req, res) => {
+    try {
+      const { user_id } = req.body;
+
+      // Validate user_id
+      if (!user_id || !ObjectId.isValid(user_id)) {
+        return res
+          .status(400)
+          .json({ success: false, message: "Valid user_id is required." });
+      }
+
+      // Fetch user with game history
+      const user = await usersCollection.findOne(
+        { _id: new ObjectId(user_id) },
+        { projection: { gameHistory: 1, username: 1 } }
+      );
+
+      if (!user) {
+        return res
+          .status(404)
+          .json({ success: false, message: "User not found!" });
+      }
+
+      // If no game history, return empty array
+      if (!user.gameHistory || user.gameHistory.length === 0) {
+        return res.json({
+          success: true,
+          data: {
+            username: user.username,
+            gameHistory: [],
+          },
+        });
+      }
+
+      // Sort game history by playedAt in descending order (latest first)
+      const sortedGameHistory = user.gameHistory.sort((a, b) => {
+        return new Date(b.playedAt) - new Date(a.playedAt);
+      });
+
+      // Fetch game details for each game history entry
+      const enrichedGameHistory = await Promise.all(
+        sortedGameHistory.map(async (history) => {
+          const game = await gamesCollection.findOne(
+            { gameID: history.gameID },
+            { projection: { title: 1, category: 1, subcategory: 1, image: 1 } }
+          );
+
+          return {
+            ...history,
+            gameInfo: game
+              ? {
+                  title: game.title,
+                  category: game.category,
+                  subcategory: game.subcategory,
+                  image: game.image,
+                }
+              : null,
+          };
+        })
+      );
+
+      // Return enriched game history
+      res.json({
+        success: true,
+        data: {
+          username: user.username,
+          gameHistory: enrichedGameHistory,
+        },
+      });
+    } catch (error) {
+      console.error("Error in get-user-game-history:", error);
+      res.status(500).json({
+        success: false,
+        message: "Server error",
+        error:
+          process.env.NODE_ENV === "development" ? error.message : undefined,
+      });
+    }
+  });
+
+  // Get all users' game history with game information, sorted by latest playedAt
+  router.get("/get-all-users-game-history", async (req, res) => {
+    try {
+      // Fetch all users with game history
+      const users = await usersCollection
+        .find(
+          { gameHistory: { $exists: true, $ne: [] } },
+          { projection: { username: 1, number: 1, gameHistory: 1 } }
+        )
+        .toArray();
+
+      if (!users || users.length === 0) {
+        return res.json({
+          success: true,
+          data: [],
+        });
+      }
+
+      // Enrich each user's game history with game details
+      const enrichedUsers = await Promise.all(
+        users.map(async (user) => {
+          // Sort game history by playedAt in descending order (latest first)
+          const sortedGameHistory = user.gameHistory.sort((a, b) => {
+            return new Date(b.playedAt) - new Date(a.playedAt);
+          });
+
+          // Fetch game details for each game history entry
+          const enrichedGameHistory = await Promise.all(
+            sortedGameHistory.map(async (history) => {
+              const game = await gamesCollection.findOne(
+                { gameID: history.gameID },
+                {
+                  projection: {
+                    title: 1,
+                    category: 1,
+                    subcategory: 1,
+                    image: 1,
+                  },
+                }
+              );
+
+              return {
+                ...history,
+                gameInfo: game
+                  ? {
+                      title: game.title,
+                      category: game.category,
+                      subcategory: game.subcategory,
+                      image: game.image,
+                    }
+                  : null,
+              };
+            })
+          );
+
+          return {
+            _id: user._id,
+            username: user.username,
+            number: user.number,
+            gameHistory: enrichedGameHistory,
+          };
+        })
+      );
+
+      // Return enriched users with game history
+      res.json({
+        success: true,
+        data: enrichedUsers,
+      });
+    } catch (error) {
+      console.error("Error in get-all-users-game-history:", error);
+      res.status(500).json({
+        success: false,
+        message: "Server error",
+        error:
+          process.env.NODE_ENV === "development" ? error.message : undefined,
+      });
+    }
+  });
+
   // get all agents
   router.get("/agent", async (req, res) => {
     try {
@@ -263,7 +648,7 @@ const usersApi = (
       }
 
       const logoUrl = `${process.env.CLIENT_URL}${logoData.image}`;
-      console.log("logo", logoUrl);
+      // console.log("logo", logoUrl);
 
       const result = await usersCollection.updateOne(
         { _id: new ObjectId(id), role: "agent" },
@@ -359,6 +744,9 @@ const usersApi = (
       const userInfo = { ...result };
       userInfo.balance -= totalPendingAmount;
       userInfo.withdraw += totalPendingAmount;
+
+      // console.log("this is balance -> ",result,userInfo );
+
       res.send(userInfo);
     } else {
       res.status(404).json({ error: "User not found" });
@@ -366,22 +754,22 @@ const usersApi = (
   });
 
   // get a agent by ID
-  router.get("/single-agent/:id", async (req, res) => {
-    const { id } = req?.params;
+  // router.get("/single-agent/:id", async (req, res) => {
+  //   const { id } = req?.params;
 
-    if (!ObjectId.isValid(id)) {
-      return res.status(400).json({ error: "Invalid ID format" });
-    }
+  //   if (!ObjectId.isValid(id)) {
+  //     return res.status(400).json({ error: "Invalid ID format" });
+  //   }
 
-    if (!id) {
-      return;
-    }
-    const result = await usersCollection.findOne(
-      { _id: new ObjectId(id), role: "agent" },
-      { projection: { password: 0 } }
-    );
-    res.send(result);
-  });
+  //   if (!id) {
+  //     return;
+  //   }
+  //   const result = await usersCollection.findOne(
+  //     { _id: new ObjectId(id), role: "agent" },
+  //     { projection: { password: 0 } }
+  //   );
+  //   res.send(result);
+  // });
 
   // Update an agent by ID
   router.put("/update-agent/:id", async (req, res) => {
@@ -521,10 +909,21 @@ const usersApi = (
     }
   });
 
-
+  // Update user information by ID
   router.put("/admin/update-user/:id", async (req, res) => {
     const { id } = req.params;
-    const updateData = req.body;
+    let updateData = req.body;
+    // Convert balance to integer if provided
+    if (updateData.balance !== undefined) {
+      updateData.balance = parseInt(updateData.balance, 10);
+      if (isNaN(updateData.balance)) {
+        return res
+          .status(400)
+          .json({ error: "Balance must be a valid number" });
+      }
+    }
+
+    // testuser ->
 
     if (!ObjectId.isValid(id)) {
       return res.status(400).json({ error: "Invalid ID format" });
@@ -571,7 +970,15 @@ const usersApi = (
       }
 
       if (updateData.role && !["user", "agent"].includes(updateData.role)) {
-        return res.status(400).json({ error: "Invalid role. Must be 'user' or 'agent'" });
+        return res
+          .status(400)
+          .json({ error: "Invalid role. Must be 'user' or 'agent'" });
+      }
+
+      if (updateData.password && updateData.password.length < 6) {
+        return res
+          .status(400)
+          .json({ error: "Password must be at least 6 characters long" });
       }
 
       const updateDoc = {
@@ -581,6 +988,12 @@ const usersApi = (
           primaryNumber: updateData.number || undefined,
         },
       };
+
+      // Hash password if provided
+      if (updateData.password) {
+        // const salt = await bcrypt.genSalt(10);
+        updateDoc.$set.password = await bcrypt.hash(updateData.password, 10);
+      }
 
       const result = await usersCollection.updateOne(
         { _id: new ObjectId(id) },
@@ -595,6 +1008,8 @@ const usersApi = (
         return res.status(200).json({ message: "No changes made" });
       }
 
+      // console.log("Update result:", result);
+
       res.status(200).json({ message: "User updated successfully" });
     } catch (error) {
       console.error("Error updating user:", error);
@@ -602,6 +1017,112 @@ const usersApi = (
     }
   });
 
+  router.get("/admin/profile/:id", async (req, res) => {
+    const { id } = req.params;
+    try {
+      if (!ObjectId.isValid(id)) {
+        return res.status(400).json({ error: "Invalid ID format" });
+      }
+      const admin = await usersCollection.findOne({
+        _id: new ObjectId(id),
+        role: "admin",
+      });
+      if (!admin) {
+        return res.status(404).json({ error: "Admin not found" });
+      }
+      res.status(200).json({
+        username: admin.username,
+        email: admin.email,
+        number: admin.number,
+      });
+    } catch (error) {
+      console.error("Error fetching admin profile:", error);
+      res.status(500).json({ error: "Failed to fetch admin profile" });
+    }
+  });
+
+  router.put("/admin/update-profile/:id", async (req, res) => {
+    const { id } = req.params;
+    const updateData = req.body;
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({ error: "Invalid ID format" });
+    }
+
+    if (!updateData || Object.keys(updateData).length === 0) {
+      return res.status(400).json({ error: "No data provided to update" });
+    }
+
+    try {
+      if (updateData.username) {
+        if (/\s/.test(updateData.username)) {
+          return res
+            .status(400)
+            .json({ error: "Username cannot contain spaces" });
+        }
+        const existingUser = await usersCollection.findOne({
+          username: updateData.username,
+          _id: { $ne: new ObjectId(id) },
+        });
+        if (existingUser) {
+          return res.status(400).json({ error: "Username already exists" });
+        }
+      }
+
+      if (
+        updateData.email &&
+        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(updateData.email)
+      ) {
+        return res.status(400).json({ error: "Invalid email format" });
+      }
+
+      if (updateData.number && !/^\d{10,15}$/.test(updateData.number)) {
+        return res
+          .status(400)
+          .json({ error: "Phone number must be 10-15 digits" });
+      }
+
+      if (updateData.password) {
+        if (
+          updateData.password.length < 6 ||
+          !/[a-zA-Z]/.test(updateData.password) ||
+          !/[0-9]/.test(updateData.password)
+        ) {
+          return res.status(400).json({
+            error:
+              "Password must be at least 6 characters long and contain letters and numbers",
+          });
+        }
+        const salt = await bcrypt.genSalt(10);
+        updateData.password = await bcrypt.hash(updateData.password, 10);
+      }
+
+      const updateDoc = {
+        $set: {
+          ...updateData,
+          updatedAt: new Date(),
+        },
+      };
+
+      const result = await usersCollection.updateOne(
+        { _id: new ObjectId(id), role: "admin" },
+        updateDoc
+      );
+
+      if (result.matchedCount === 0) {
+        return res.status(404).json({ error: "Admin not found" });
+      }
+
+      if (result.modifiedCount === 0) {
+        return res.status(200).json({ message: "No changes made" });
+      }
+
+      res.status(200).json({ message: "Profile updated successfully" });
+    } catch (error) {
+      console.error("Error updating admin profile:", error);
+      res.status(500).json({ error: "Failed to update profile" });
+    }
+  });
 
   return router;
 };

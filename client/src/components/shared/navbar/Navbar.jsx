@@ -1,8 +1,28 @@
 import { Link, NavLink, useNavigate } from "react-router-dom";
-import { FaCaretDown, FaPlus, FaUser } from "react-icons/fa";
-import { IoMdNotifications } from "react-icons/io";
-import { TbCurrencyTaka } from "react-icons/tb";
+import {
+  FaCaretDown,
+  FaPlus,
+  FaUser,
+  FaGift,
+  FaTrophy,
+  FaUsers,
+  FaTicketAlt,
+  FaBaseballBall,
+  FaDice,
+  FaTable,
+  FaBook,
+  FaFish,
+  FaRocket,
+  FaGamepad,
+  FaLanguage,
+  FaQuestionCircle,
+  FaComment,
+  FaDownload,
+  FaSignOutAlt,
+} from "react-icons/fa";
 import { IoHome, IoMenuOutline } from "react-icons/io5";
+import { TbCurrencyTaka } from "react-icons/tb";
+import { FiRefreshCw } from "react-icons/fi";
 import { useEffect, useState } from "react";
 import Modal from "../modal/Modal";
 import {
@@ -13,53 +33,53 @@ import {
 } from "@/components/ui/sheet"; // Shadcn sheet
 import MegaMenu from "../megaMenu/MegaMenu";
 import { useDispatch, useSelector } from "react-redux";
-import { RiLogoutCircleRFill } from "react-icons/ri";
 import { useToasts } from "react-toast-notifications";
 import { logout } from "@/redux/slices/authSlice";
 import { useGetHomeControlsQuery } from "@/redux/features/allApis/homeControlApi/homeControlApi";
 import { useLazyGetUserByIdQuery } from "@/redux/features/allApis/usersApi/usersApi";
 import { useGetCategoriesQuery } from "@/redux/features/allApis/categoriesApi/categoriesApi";
 import hotIcon from "@/assets/images/hot-icon.png";
+import { RiLogoutCircleRFill } from "react-icons/ri";
 
 const data = [
   {
     id: 1,
-    image: "https://www.babu88.app/static/svg/mobileMenu/promotion.svg",
+    icon: <FaGift size={20} />,
     title: "প্রমোশন",
     route: "/promotion",
     badge: "",
   },
   {
     id: 2,
-    image: "https://www.babu88.app/static/svg/mobileMenu/rewards.svg",
+    icon: <FaTrophy size={20} />,
     title: "পুরস্কার",
     route: "/profile/rewards",
     badge: "new",
   },
   {
     id: 3,
-    image: "https://www.babu88.app/static/svg/mobileMenu/referAndEarn.svg",
+    icon: <FaUsers size={20} />,
     title: "রেফারেল প্রোগ্রাম",
-    route: "/profile/rewards",
+    route: "/referral",
     badge: "hot",
   },
   {
     id: 4,
-    image: "https://www.babu88.app/static/svg/mobileMenu/bettingPass.svg",
+    icon: <FaTicketAlt size={20} />,
     title: "বেটিং পাস",
     route: "/profile/rewards",
     badge: "hot",
   },
   {
     id: 5,
-    image: "https://www.babu88.app/static/svg/mobileMenu/bpass_ipl_icon.svg",
+    icon: <FaBaseballBall size={20} />,
     title: "IPL 2025 বেটিং পাস",
     route: "/profile/rewards",
     badge: "hot",
   },
   {
     id: 6,
-    image: "https://www.babu88.app/static/svg/mobileMenu/agentAff.svg",
+    icon: <FaUsers size={20} />,
     title: "অ্যাফিলিয়েট",
     route: "/profile/rewards",
     badge: "",
@@ -69,56 +89,56 @@ const data = [
 const gamesData = [
   {
     id: 1,
-    image: "https://www.babu88.app/static/svg/mobileMenu/cricket.svg",
-    title: "ক্রিকেট",
+    icon: <FaBaseballBall size={20} />,
+    title: "স্পোর্টস",
     route: "/cricket",
     badge: "",
   },
   {
     id: 2,
-    image: "https://www.babu88.app/static/svg/mobileMenu/ld.svg",
+    icon: <FaDice size={20} />,
     title: "ক্যাসিনো",
     route: "/casino",
     badge: "",
   },
   {
     id: 3,
-    image: "https://www.babu88.app/static/svg/mobileMenu/rng.svg",
+    icon: <FaGamepad size={20} />,
     title: "স্লট গেম",
     route: "/slot",
     badge: "",
   },
   {
     id: 4,
-    image: "https://www.babu88.app/static/svg/mobileMenu/table.svg",
+    icon: <FaTable size={20} />,
     title: "টেবিল গেম",
     route: "/table-games",
     badge: "",
   },
   {
     id: 5,
-    image: "https://www.babu88.app/static/svg/mobileMenu/sb.svg",
+    icon: <FaBook size={20} />,
     title: "খেলার বই",
     route: "/sports-book",
     badge: "",
   },
   {
     id: 6,
-    image: "https://www.babu88.app/static/svg/mobileMenu/fishing.svg",
+    icon: <FaFish size={20} />,
     title: "মাছ ধরা",
     route: "/fishing",
     badge: "",
   },
   {
     id: 7,
-    image: "https://www.babu88.app/static/svg/mobileMenu/crash.svg",
+    icon: <FaRocket size={20} />,
     title: "ক্র্যাশ",
     route: "/crash",
     badge: "new",
   },
   {
     id: 8,
-    image: "https://www.babu88.app/static/svg/mobileMenu/fastgames.svg",
+    icon: <FaGamepad size={20} />,
     title: "দ্রুতগতির গেমস",
     route: "/cricket",
     badge: "",
@@ -127,16 +147,22 @@ const gamesData = [
 
 const Navbar = () => {
   const { data: homeControls } = useGetHomeControlsQuery();
-  const { data: categories = [], isLoading: isCategoriesLoading } = useGetCategoriesQuery();
+  const { data: categories = [], isLoading: isCategoriesLoading } =
+    useGetCategoriesQuery();
   const { user, token } = useSelector((state) => state.auth);
-  const {   mainBackgroundTextColor ,  mainBackgroundColor,  mobileSidebarMenuBackgroundColor ,mobileSidebarMenuTextColor,mobileSidebarMenuIconColor } = useSelector((state) => state.themeColor);
+  const {
+    mainBackgroundTextColor,
+    mainBackgroundColor,
+    mobileSidebarMenuBackgroundColor,
+    mobileSidebarMenuTextColor,
+    mobileSidebarMenuIconColor,
+  } = useSelector((state) => state.themeColor);
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { addToast } = useToasts();
 
-  const [mainColor,setMainColor] = useState( mainBackgroundTextColor );
-  const [backgroundColor,setBackgroundColor] = useState(mainBackgroundColor);
-
+  const [mainColor, setMainColor] = useState(mainBackgroundTextColor);
+  const [backgroundColor, setBackgroundColor] = useState(mainBackgroundColor);
 
   // Fallback colors
   const navBackgroundColor = backgroundColor || "#333333";
@@ -160,20 +186,25 @@ const Navbar = () => {
     return categories
       .filter((cat) => cat.category === category)
       .map((cat) => ({
-        route: category === "sb" ? "/sports-book" : category === "table" ? "/table-games" : `/${category}`,
+        route:
+          category === "sb"
+            ? "/sports-book"
+            : category === "table"
+            ? "/table-games"
+            : `/${category}`,
         image: `${import.meta.env.VITE_BASE_API_URL}${cat?.image}`,
         title: cat.title,
       }));
   };
 
   const megaMenuData = {
-    cricket:getMegaMenuData("cricket"), // No data in provided MongoDB for cricket
+    cricket: getMegaMenuData("cricket"),
     casino: getMegaMenuData("casino"),
-    slot: getMegaMenuData("slot"), // No data in provided MongoDB for slot
-    table: getMegaMenuData("table"), // No data in provided MongoDB for table
+    slot: getMegaMenuData("slot"),
+    table: getMegaMenuData("table"),
     sports_book: getMegaMenuData("sb"),
-    fishing: getMegaMenuData("fishing"), // No data in provided MongoDB for fishing
-    crash: getMegaMenuData("casino"), // No data in provided MongoDB for crash
+    fishing: getMegaMenuData("fishing"),
+    crash: getMegaMenuData("crash"),
   };
 
   const modalData = [
@@ -273,6 +304,9 @@ const Navbar = () => {
           .deposit-button:hover {
             background-color: ${mainColor};
           }
+          .load-button:hover {
+            background-color: #2563EB;
+          }
         `}
       </style>
       {/* Start top navbar */}
@@ -281,40 +315,50 @@ const Navbar = () => {
           {/* Mobile menu icon */}
           <div className="md:hidden">
             <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
-              <SheetTrigger asChild style={{border:"none"}}>
-                <button className="ml-auto border-none" style={{border:"none"}}>
-                  <IoMenuOutline size={30} style={{border:"none"}} />
+              <SheetTrigger asChild style={{ border: "none" }}>
+                <button
+                  className="ml-auto border-none"
+                  style={{ border: "none" }}
+                >
+                  <IoMenuOutline size={30} style={{ border: "none" }} />
                 </button>
               </SheetTrigger>
               <SheetContent
-                className=" w-64 p-2"
+                className="w-64 p-2"
                 side="left"
-                style={{ backgroundColor: mobileSidebarMenuBackgroundColor}}
+                style={{ backgroundColor: mobileSidebarMenuBackgroundColor }}
               >
                 <SheetClose asChild className="border-b-2 pb-2">
                   <div className="w-40">
-                    <Link to={"/"}>
+                    <Link to={"/"} onClick={() => console.log("Logo clicked")}>
                       <img
-                        src={`${import.meta.env.VITE_BASE_API_URL}${logo?.image}`}
+                        src={`${import.meta.env.VITE_BASE_API_URL}${
+                          logo?.image
+                        }`}
                         alt="Logo"
                       />
                     </Link>
                   </div>
-                   
                 </SheetClose>
-              
                 <ul className="space-y-6 overflow-y-auto h-[92%]">
                   {data?.map((item) => (
                     <SheetClose key={item.id} asChild>
                       <Link to={item.route}>
                         <li className="flex items-center justify-start gap-3 mt-4 text-xs font-medium px-3 py-2 hover:bg-slate-200 rounded-lg">
-                          <img className="w-6" src={item.image} alt={item.title} />
-                         
-                          <p style={{color : mobileSidebarMenuTextColor}} className="">{item.title}</p>
+                          <div style={{ color: mobileSidebarMenuIconColor }}>
+                            {item.icon}
+                          </div>
+                          <p style={{ color: mobileSidebarMenuTextColor }}>
+                            {item.title}
+                          </p>
                           {item?.badge &&
                             (item?.badge === "hot" ? (
                               <div className="w-8 animate-pulse">
-                                <img className="w-full" src={hotIcon} alt="Hot" />
+                                <img
+                                  className="w-full"
+                                  src={hotIcon}
+                                  alt="Hot"
+                                />
                               </div>
                             ) : (
                               <button className="animate-pulse rounded-full w-8 bg-[#04B22B] text-white">
@@ -326,16 +370,23 @@ const Navbar = () => {
                     </SheetClose>
                   ))}
                   <div className="border-b-2 pb-2">
-                    <p className="text-sm font-semibold" style={{color : mobileSidebarMenuTextColor}}>Games</p>
+                    <p
+                      className="text-sm font-semibold"
+                      style={{ color: mobileSidebarMenuTextColor }}
+                    >
+                      Games
+                    </p>
                   </div>
-                  
-                 
                   {gamesData?.map((item) => (
                     <SheetClose key={item.id} asChild>
                       <Link to={item.route}>
                         <li className="flex gap-4 mt-1 text-sm font-medium px-3 py-2 hover:bg-slate-200 rounded-lg">
-                          <img className="w-6" src={item.image} alt={item.title} />
-                          <p  style={{color : mobileSidebarMenuTextColor}}>{item.title}</p>
+                          <div style={{ color: mobileSidebarMenuIconColor }}>
+                            {item.icon}
+                          </div>
+                          <p style={{ color: mobileSidebarMenuTextColor }}>
+                            {item.title}
+                          </p>
                           {item?.badge && (
                             <button className="animate-pulse rounded-full w-10 py-1 bg-[#04B22B] text-white">
                               new
@@ -346,7 +397,12 @@ const Navbar = () => {
                     </SheetClose>
                   ))}
                   <div className="border-b-2 pb-2">
-                    <p className="text-sm font-semibold" style={{color : mobileSidebarMenuTextColor}}>Others</p>
+                    <p
+                      className="text-sm font-semibold"
+                      style={{ color: mobileSidebarMenuTextColor }}
+                    >
+                      Others
+                    </p>
                   </div>
                   <SheetClose asChild>
                     <Link to={"/"}>
@@ -354,48 +410,52 @@ const Navbar = () => {
                         onClick={handleModalOpen}
                         className="flex gap-4 mt-1 text-sm font-medium px-3 py-2 hover:bg-slate-200 rounded-lg"
                       >
-                        <img
-                          className="w-4"
-                          src="https://www.babu88.app/static/svg/mobileMenu/language.svg"
-                          alt="Language"
+                        <FaLanguage
+                          size={20}
+                          style={{ color: mobileSidebarMenuIconColor }}
                         />
-                        <p  style={{color : mobileSidebarMenuTextColor}}>ভাষা</p>
+                        <p style={{ color: mobileSidebarMenuTextColor }}>
+                          ভাষা
+                        </p>
                       </li>
                     </Link>
                   </SheetClose>
                   <SheetClose asChild>
                     <Link to={"/faq"}>
                       <li className="flex gap-4 mt-1 text-sm font-medium px-3 py-2 hover:bg-slate-200 rounded-lg">
-                        <img
-                          className="w-4"
-                          src="https://www.babu88.app/static/svg/mobileMenu/faq.svg"
-                          alt="FAQ"
+                        <FaQuestionCircle
+                          size={20}
+                          style={{ color: mobileSidebarMenuIconColor }}
                         />
-                        <p  style={{color : mobileSidebarMenuTextColor}}>প্রায়শই জিজ্ঞাসিত প্রশ্নাবলী</p>
+                        <p style={{ color: mobileSidebarMenuTextColor }}>
+                          প্রায়শই জিজ্ঞাসিত প্রশ্নাবলী
+                        </p>
                       </li>
                     </Link>
                   </SheetClose>
                   <SheetClose asChild>
                     <Link to={"/faq"}>
                       <li className="flex gap-4 mt-1 text-sm font-medium px-3 py-2 hover:bg-slate-200 rounded-lg">
-                        <img
-                          className="w-4"
-                          src="https://www.babu88.app/static/svg/mobileMenu/liveChat.svg"
-                          alt="Live Chat"
+                        <FaComment
+                          size={20}
+                          style={{ color: mobileSidebarMenuIconColor }}
                         />
-                        <p  style={{color : mobileSidebarMenuTextColor}}>সরাসরি কথোপকথন</p>
+                        <p style={{ color: mobileSidebarMenuTextColor }}>
+                          সরাসরি কথোপকথন
+                        </p>
                       </li>
                     </Link>
                   </SheetClose>
                   <SheetClose asChild>
                     <Link to={"./babu88.apk"} target={"_blank"} download>
                       <li className="flex gap-4 mt-1 text-sm font-medium px-3 py-2 hover:bg-slate-200 rounded-lg">
-                        <img
-                          className="w-4"
-                          src="https://www.babu88.app/static/svg/mobileMenu/downloadApp.svg"
-                          alt="Download App"
+                        <FaDownload
+                          size={20}
+                          style={{ color: mobileSidebarMenuIconColor }}
                         />
-                        <p  style={{color : mobileSidebarMenuTextColor}}>ডাউনলোড করুন</p>
+                        <p style={{ color: mobileSidebarMenuTextColor }}>
+                          ডাউনলোড করুন
+                        </p>
                       </li>
                     </Link>
                   </SheetClose>
@@ -405,12 +465,13 @@ const Navbar = () => {
                         onClick={handleLogout}
                         className="flex gap-4 mt-10 text-sm font-medium px-3 py-2 hover:bg-slate-200 rounded-lg"
                       >
-                        <img
-                          className="w-4"
-                          src="https://babo88.com/static/svg/mobileMenu/logout.svg"
-                          alt="Logout"
+                        <FaSignOutAlt
+                          size={20}
+                          style={{ color: mobileSidebarMenuIconColor }}
                         />
-                        <p  style={{color : mobileSidebarMenuTextColor}}>প্রস্থান</p>
+                        <p style={{ color: mobileSidebarMenuTextColor }}>
+                          প্রস্থান
+                        </p>
                       </li>
                     </SheetClose>
                   )}
@@ -436,23 +497,25 @@ const Navbar = () => {
                 <div className="flex justify-center items-center gap-2 lg:gap-3">
                   <p className="text-lg font-bold">{user?.username}</p>
                   <Link to={"/profile"}>
-                    <div className="flex justify-center items-center p-3 text-base lg:text-xl profile-button rounded-full" style={{ backgroundColor: backgroundColor, color: mainColor }}>
+                    <div
+                      className="flex justify-center items-center p-3 text-base lg:text-xl profile-button rounded-full"
+                      style={{
+                        backgroundColor: backgroundColor,
+                        color: mainColor,
+                      }}
+                    >
                       <FaUser />
                     </div>
                   </Link>
-                  <Link to={"/profile/inbox"} className="relative">
-                    <div className="flex justify-center items-center p-2.5 text-xl lg:text-2xl notification-button rounded-full" style={{ backgroundColor: backgroundColor, color: mainColor }}>
-                      <IoMdNotifications />
-                    </div>
-                    <div className="absolute -top-1 -right-1 flex justify-center items-center w-5 h-5 text-xs text-white bg-blue-500 rounded-full">
-                      58
-                    </div>
-                  </Link>
+
                   <div>
                     <button
                       onClick={handleLogout}
                       className="flex justify-center items-center p-2.5 text-xl lg:text-2xl logout-button rounded-full"
-                      style={{ backgroundColor: backgroundColor, color: mainColor }}
+                      style={{
+                        backgroundColor: backgroundColor,
+                        color: mainColor,
+                      }}
                     >
                       <RiLogoutCircleRFill />
                     </button>
@@ -460,17 +523,43 @@ const Navbar = () => {
                   <div className="w-1 h-10 border-r border-gray-400"></div>
                 </div>
                 <div className="flex gap-2 items-center pl-4 rounded-full bg-gray-200">
-                  <Link>
-                    <div
-                      className="flex items-center text-xl lg:text-2xl"
-                      onClick={() => user && getUserDataAgain(user._id)}
-                    >
-                      <TbCurrencyTaka />
-                      <p>{(userData?.balance || user?.balance || 0).toLocaleString()} {!userData?.balance && 0}</p>
-                    </div>
-                  </Link>
+                  <div className="flex items-center text-xl lg:text-2xl">
+                    <TbCurrencyTaka />
+                    {isLoading ? (
+                      <span className="animate-pulse">Loading...</span>
+                    ) : (
+                      <p>
+                        {(
+                          userData?.balance ||
+                          user?.balance ||
+                          0
+                        ).toLocaleString()}
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => user && getUserDataAgain(user._id)}
+                    className="flex justify-center items-center p-2.5 text-sm font-semibold text-white load-button rounded-full"
+                    style={{ backgroundColor: "#3B82F6" }}
+                    disabled={isLoading}
+                    aria-label={
+                      isLoading ? "Loading balance" : "Reload balance"
+                    }
+                  >
+                    {isLoading ? (
+                      <FiRefreshCw className="animate-spin h-5 w-5 text-white" />
+                    ) : (
+                      <FiRefreshCw className="h-5 w-5 text-white" />
+                    )}
+                  </button>
                   <Link to={"/profile/deposit"}>
-                    <div className="flex justify-center items-center p-2.5 text-xl lg:text-2xl text-white deposit-button rounded-full" style={{ backgroundColor: backgroundColor, color: mainColor }}>
+                    <div
+                      className="flex justify-center items-center p-2.5 text-xl lg:text-2xl text-white deposit-button rounded-full"
+                      style={{
+                        backgroundColor: backgroundColor,
+                        color: mainColor,
+                      }}
+                    >
                       <FaPlus />
                     </div>
                   </Link>
@@ -479,12 +568,24 @@ const Navbar = () => {
             ) : (
               <ul className="md:flex items-center gap-4 hidden">
                 <Link to={"/login"}>
-                  <li className="text-sm font-semibold px-3 py-2 rounded-lg login-button" style={{ backgroundColor: primaryColor, color: backgroundColor }}>
+                  <li
+                    className="text-sm font-semibold px-3 py-2 rounded-lg login-button"
+                    style={{
+                      backgroundColor: primaryColor,
+                      color: backgroundColor,
+                    }}
+                  >
                     প্রবেশ করুন
                   </li>
                 </Link>
                 <Link to={"/register"}>
-                  <li className="text-sm font-semibold px-3 py-2 rounded-lg text-white signup-button" style={{ backgroundColor: backgroundColor, color: mainColor }}>
+                  <li
+                    className="text-sm font-semibold px-3 py-2 rounded-lg text-white signup-button"
+                    style={{
+                      backgroundColor: backgroundColor,
+                      color: mainColor,
+                    }}
+                  >
                     এখনি যোগদিন
                   </li>
                 </Link>
@@ -514,7 +615,13 @@ const Navbar = () => {
       </div>
 
       {/* Bottom navbar */}
-      <div className="md:flex hidden relative" style={{ backgroundColor: navBackgroundColor  , color: mainBackgroundTextColor}}>
+      <div
+        className="md:flex hidden relative"
+        style={{
+          backgroundColor: navBackgroundColor,
+          color: mainBackgroundTextColor,
+        }}
+      >
         <div className="container mx-auto px-4">
           <ul className="flex whitespace-nowrap overflow-x-auto">
             {/* Single menu */}
@@ -523,7 +630,7 @@ const Navbar = () => {
               className="text-sm font-semibold flex items-center gap-1 justify-center py-3 text-white nav-link border-b-[4px] border-b-transparent transition-colors duration-200 ease-linear"
             >
               <p className="py-1 px-5 border-r-[1px]">
-                <IoHome size={20}  style={{ color: mainBackgroundTextColor }} />
+                <IoHome size={20} style={{ color: mainBackgroundTextColor }} />
               </p>
             </NavLink>
 
@@ -534,10 +641,10 @@ const Navbar = () => {
             >
               <NavLink
                 to={"/cricket"}
-                className="text-sm font-semibold flex items-center gap-1 justify-center px-5 py-4  nav-link border-b-[4px] border-b-transparent transition-colors duration-200 ease-linear"
+                className="text-sm font-semibold flex items-center gap-1 justify-center px-5 py-4 nav-link border-b-[4px] border-b-transparent transition-colors duration-200 ease-linear"
                 style={{ color: mainBackgroundTextColor }}
               >
-                <p>ক্রিকেট</p>
+                <p>স্পোর্টস</p>
               </NavLink>
               <div
                 style={{ backgroundColor: backgroundColor }}
@@ -558,8 +665,8 @@ const Navbar = () => {
             >
               <NavLink
                 to={"/casino"}
-                className="text-sm font-semibold flex items-center gap-1 justify-center px-5 py-4 text-white nav-link border-b-[4px] border-b-transparent transition-colors duration-200 ease-linear"
-                 style={{ color: mainBackgroundTextColor }}
+                className="text-sm font-semibold flex items-center gap-1 justify-center px-5 py-4 nav-link border-b-[4px] border-b-transparent transition-colors duration-200 ease-linear"
+                style={{ color: mainBackgroundTextColor }}
               >
                 <p>ক্যাসিনো</p>
               </NavLink>
@@ -582,8 +689,8 @@ const Navbar = () => {
             >
               <NavLink
                 to={"/slot"}
-                className="text-sm font-semibold flex items-center gap-1 justify-center px-5 py-4 text-white nav-link border-b-[4px] border-b-transparent transition-colors duration-200 ease-linear"
-                 style={{ color: mainBackgroundTextColor }}
+                className="text-sm font-semibold flex items-center gap-1 justify-center px-5 py-4 nav-link border-b-[4px] border-b-transparent transition-colors duration-200 ease-linear"
+                style={{ color: mainBackgroundTextColor }}
               >
                 <p>স্লট গেম</p>
               </NavLink>
@@ -606,8 +713,8 @@ const Navbar = () => {
             >
               <NavLink
                 to={"/table-games"}
-                className="text-sm font-semibold flex items-center gap-1 justify-center px-5 py-4 text-white nav-link border-b-[4px] border-b-transparent transition-colors duration-200 ease-linear"
-                 style={{ color: mainBackgroundTextColor }}
+                className="text-sm font-semibold flex items-center gap-1 justify-center px-5 py-4 nav-link border-b-[4px] border-b-transparent transition-colors duration-200 ease-linear"
+                style={{ color: mainBackgroundTextColor }}
               >
                 <p>টেবিল গেম</p>
               </NavLink>
@@ -630,8 +737,8 @@ const Navbar = () => {
             >
               <NavLink
                 to={"/sports-book"}
-                className="text-sm font-semibold flex items-center gap-1 justify-center px-5 py-4 text-white nav-link border-b-[4px] border-b-transparent transition-colors duration-200 ease-linear"
-                 style={{ color: mainBackgroundTextColor }}
+                className="text-sm font-semibold flex items-center gap-1 justify-center px-5 py-4 nav-link border-b-[4px] border-b-transparent transition-colors duration-200 ease-linear"
+                style={{ color: mainBackgroundTextColor }}
               >
                 <p>খেলার বই</p>
               </NavLink>
@@ -654,8 +761,8 @@ const Navbar = () => {
             >
               <NavLink
                 to={"/fishing"}
-                className="text-sm font-semibold flex items-center gap-1 justify-center px-5 py-4 text-white nav-link border-b-[4px] border-b-transparent transition-colors duration-200 ease-linear"
-                 style={{ color: mainBackgroundTextColor }}
+                className="text-sm font-semibold flex items-center gap-1 justify-center px-5 py-4 nav-link border-b-[4px] border-b-transparent transition-colors duration-200 ease-linear"
+                style={{ color: mainBackgroundTextColor }}
               >
                 <p>মাছ ধরা</p>
               </NavLink>
@@ -678,8 +785,8 @@ const Navbar = () => {
             >
               <NavLink
                 to={"/crash"}
-                className="text-sm font-semibold flex items-center gap-1 justify-center px-5 py-4 text-white nav-link border-b-[4px] border-b-transparent transition-colors duration-200 ease-linear"
-                 style={{ color: mainBackgroundTextColor }}
+                className="text-sm font-semibold flex items-center gap-1 justify-center px-5 py-4 nav-link border-b-[4px] border-b-transparent transition-colors duration-200 ease-linear"
+                style={{ color: mainBackgroundTextColor }}
               >
                 <p>ক্র্যাশ</p>
               </NavLink>
@@ -698,8 +805,8 @@ const Navbar = () => {
             {/* Single promotion menu */}
             <NavLink
               to={"/promotion"}
-              className="text-sm font-semibold flex items-center gap-1 justify-center px-5 py-4 text-white nav-link border-b-[4px] border-b-transparent transition-colors duration-200 ease-linear"
-               style={{ color: mainBackgroundTextColor }}
+              className="text-sm font-semibold flex items-center gap-1 justify-center px-5 py-4 nav-link border-b-[4px] border-b-transparent transition-colors duration-200 ease-linear"
+              style={{ color: mainBackgroundTextColor }}
             >
               <p>প্রমোশন</p>
             </NavLink>
@@ -707,8 +814,8 @@ const Navbar = () => {
             {/* Single betting-pass menu */}
             <NavLink
               to={"/betting-pass"}
-              className="text-sm font-semibold flex items-center gap-1 justify-center px-5 py-4 text-white nav-link border-b-[4px] border-b-transparent transition-colors duration-200 ease-linear"
-                    style={{ color: mainBackgroundTextColor }}
+              className="text-sm font-semibold flex items-center gap-1 justify-center px-5 py-4 nav-link border-b-[4px] border-b-transparent transition-colors duration-200 ease-linear"
+              style={{ color: mainBackgroundTextColor }}
             >
               <p>বেটিং পাস</p>
             </NavLink>
@@ -716,8 +823,8 @@ const Navbar = () => {
             {/* Single referral menu */}
             <NavLink
               to={"/referral"}
-              className="text-sm font-semibold flex items-center gap-1 justify-center px-5 py-4 text-white nav-link border-b-[4px] border-b-transparent transition-colors duration-200 ease-linear"
-               style={{ color: mainBackgroundTextColor }}
+              className="text-sm font-semibold flex items-center gap-1 justify-center px-5 py-4 nav-link border-b-[4px] border-b-transparent transition-colors duration-200 ease-linear"
+              style={{ color: mainBackgroundTextColor }}
             >
               <p>সুপারিশ</p>
             </NavLink>

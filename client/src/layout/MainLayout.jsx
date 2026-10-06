@@ -45,11 +45,11 @@ const navItems = [
 
 const MainLayout = () => {
   const { user, token } = useSelector((state) => state.auth);
-  const { 
+  const {
     mainBackgroundColor, // Default: Deep blue
-    mainBackgroundTextColor , // Default: White
-    secondaryButtonBackgroundColor , // Default: Amber
-    secondaryButtonTextColor  // Default: Dark gray
+    mainBackgroundTextColor, // Default: White
+    secondaryButtonBackgroundColor, // Default: Amber
+    secondaryButtonTextColor, // Default: Dark gray
   } = useSelector((state) => state.themeColor);
   const location = useLocation();
   const [path, setPath] = useState("");
@@ -94,6 +94,9 @@ const MainLayout = () => {
     setPath(location.pathname);
   }, [location]);
 
+  // Check if the current path starts with "/livegame/"
+  const isLiveGamePath = location.pathname.startsWith("/livegame/");
+
   return (
     <div>
       <style>
@@ -128,44 +131,47 @@ const MainLayout = () => {
           <Link to={"/login"} className="w-1/2">
             <p
               className="p-3 text-base text-center font-semibold login-button"
-              style={{ backgroundColor: secondaryButtonBackgroundColor, color: secondaryButtonTextColor  }}
+              style={{ backgroundColor: secondaryButtonBackgroundColor, color: secondaryButtonTextColor }}
             >
               প্রবেশ করুন
             </p>
           </Link>
         </div>
       ) : (
-        <div
-          className="grid grid-cols-5 sticky bottom-0 w-full md:hidden z-50 text-white rounded-t-2xl"
-          style={{ backgroundColor: bannerBgColor }}
-        >
-          {navItems.map((item) => (
-            <Link key={item.id} to={item.to}>
-              <div
-                className={`w-full py-3 px-2 flex flex-col items-center justify-center text-sm gap-0.5 nav-item ${
-                  (path === item.to ||
+        // Only render navItems if not on /livegame/:id path
+        !isLiveGamePath && (
+          <div
+            className="grid grid-cols-5 sticky bottom-0 w-full md:hidden z-50 text-white rounded-t-2xl"
+            style={{ backgroundColor: bannerBgColor }}
+          >
+            {navItems.map((item) => (
+              <Link key={item.id} to={item.to}>
+                <div
+                  className={`w-full py-3 px-2 flex flex-col items-center justify-center text-sm gap-0.5 nav-item ${
+                    (path === item.to ||
+                      (item.to === "/profile/deposit" &&
+                        path.includes("/profile/deposit")) ||
+                      (item.to === "/profile/deposit" &&
+                        path.includes("/profile/withdrawal")))
+                      ? "active"
+                      : ""
+                  }`}
+                >
+                  {(path === item.to ||
                     (item.to === "/profile/deposit" &&
                       path.includes("/profile/deposit")) ||
                     (item.to === "/profile/deposit" &&
-                      path.includes("/profile/withdrawal")))
-                    ? "active"
-                    : ""
-                }`}
-              >
-                {(path === item.to ||
-                  (item.to === "/profile/deposit" &&
-                    path.includes("/profile/deposit")) ||
-                  (item.to === "/profile/deposit" &&
-                    path.includes("/profile/withdrawal"))) ? (
-                  <div style={{ color: activeIconColor }}>{item.icon}</div>
-                ) : (
-                  <div style={{ color: mainBackgroundTextColor }}>{item.icon}</div>
-                )}
-                <p style={{ color: mainBackgroundTextColor }}>{item.label}</p>
-              </div>
-            </Link>
-          ))}
-        </div>
+                      path.includes("/profile/withdrawal"))) ? (
+                    <div style={{ color: activeIconColor }}>{item.icon}</div>
+                  ) : (
+                    <div style={{ color: mainBackgroundTextColor }}>{item.icon}</div>
+                  )}
+                  <p style={{ color: mainBackgroundTextColor }}>{item.label}</p>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )
       )}
     </div>
   );

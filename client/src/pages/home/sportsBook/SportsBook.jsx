@@ -1,114 +1,59 @@
 import Banner from "@/components/shared/banner/Banner";
 import GameCard from "@/components/shared/gameCard/GameCard";
 import RouteChange from "@/components/shared/routeChange/RouteChange";
-import { useGetGamesQuery } from "@/redux/features/allApis/gameApi/gameApi";
-import { useGetCategoriesQuery } from "@/redux/features/allApis/categoriesApi/categoriesApi";
-import { useSelector } from "react-redux";
 import { useEffect, useState } from "react";
+import boikhela from "../../../assets/boikhela.webp"; // ডামি পাথ, প্রকৃত পাথ দিয়ে রিপ্লেস করো
 
 const SportsBook = () => {
-  const { data: games = [], isLoading: isGamesLoading, isError: isGamesError } = useGetGamesQuery();
-  const { data: subcategories = [], isLoading: isSubcategoriesLoading, isError: isSubcategoriesError } = useGetCategoriesQuery();
+  // State for sports book games, loading, error, and selected provider
+  const [sbGames, setSbGames] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [providers, setProviders] = useState([]);
+  const [selectedProvider, setSelectedProvider] = useState("সব");
 
-  // State to track selected subcategory
-  const [selectedSubcategory, setSelectedSubcategory] = useState("all");
+  useEffect(() => {
+    const fetchSbGames = async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const res = await fetch(
+          `${import.meta.env.VITE_BASE_API_URL}/games/sb-all`
+        );
+        const data = await res.json();
+        if (data.success && Array.isArray(data.data)) {
+          setSbGames(data.data);
 
-  // Filter fishing subcategories
-  const fishingSubcategories = subcategories.filter((sub) => sub.category === "sb");
+          // Extract unique providers
+          const uniqueProviders = [
+            ...new Set(data.data.map((game) => game.provider.name)),
+          ];
+          setProviders(["সব", ...uniqueProviders]);
+        } else {
+          setSbGames([]);
+          setError("No games found");
+        }
+      } catch {
+        setSbGames([]);
+        setError("Error loading games");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchSbGames();
+  }, []);
 
-  // Create buttons array for GameVendorList with "All" button
-  const buttons = [
-    {
-      image: null, // No image for "All" button
-      text: "সব",
-    },
-    ...fishingSubcategories.map((sub) => ({
-      image: `${import.meta.env.VITE_BASE_API_URL}${sub?.iconImage}`,
-      text: sub.title,
-    })),
-  ];
-
-
-  
-
-
-
-  // Filter fishing games based on selected subcategory and isActive
-  const fishingGames = games.filter((game) => {
-    if (selectedSubcategory === "all") {
-      return game.category === "sb" 
-    }
-    return game.category === "sb" && game.subcategory === selectedSubcategory 
-  });
-
-  // Handle button click
-  const handleButtonClick = (subcategory) => {
-    if (subcategory === "সব") {
-      setSelectedSubcategory("all");
-    } else {
-      setSelectedSubcategory(subcategory);
-    }
-  };
-
-  // Inline GameVendorButton component
-  const GameVendorButton = ({ gameVendorImg, gameVendorText, onClick }) => {
-    const { mainColor, backgroundColor } = useSelector((state) => state.themeColor);
-    const isSelected = selectedSubcategory === gameVendorText || (gameVendorText === "সব" && selectedSubcategory === "all");
-
-    return (
-      <div>
-        <button
-          onClick={() => onClick(gameVendorText)}
-          className="w-full mx-auto md:p-2 text-xs lg:text-sm font-semibold cursor-pointer md:border-2 md:rounded-full transition-all duration-500"
-          style={{
-            borderColor: isSelected ? mainColor : backgroundColor,
-            backgroundColor: isSelected ? backgroundColor : mainColor,
-            color: isSelected ? mainColor : backgroundColor,
-          }}
-        >
-          <div className="flex gap-0 md:gap-1 flex-col md:flex-row justify-center items-center">
-            {gameVendorImg && (
-              <div className="size-14 md:size-5 p-2 md:p-0 rounded-lg md:rounded-none bg-slate-200 hover:bg-gray-700 md:hover:bg-inherit md:bg-inherit">
-                <img className="w-full" src={gameVendorImg} alt="" />
-              </div>
-            )}
-            <p>{gameVendorText}</p>
-          </div>
-        </button>
-      </div>
-    );
-  };
-
-  // Inline GameVendorList component
-  const GameVendorList = ({ buttons }) => {
-    return (
-      <div>
-        {/* button */}
-        <div className="md:container md:mx-auto px-0 md:px-4 sm:px-10 lg:px-24 mt-2 md:mt-6">
-          <div className="p-2 lg:p-4 bg-slate-100 rounded-lg">
-            <div className="flex md:grid xl:grid-cols-6 grid-cols-4 gap-3 md:gap-4 overflow-x-auto md:overflow-visible">
-              {buttons?.map((button, index) => (
-                <GameVendorButton
-                  key={index}
-                  gameVendorImg={button.image}
-                  gameVendorText={button.text}
-                  onClick={handleButtonClick}
-                />
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
+  // Filter games based on selected provider
+  const filteredGames =
+    selectedProvider === "সব"
+      ? sbGames
+      : sbGames.filter((game) => game.provider.name === selectedProvider);
 
   return (
     <div>
       {/* Banner img */}
       <Banner
-        B_image={
-          "https://jiliwin.9terawolf.com/images/babu/game_banner/fishing_new.jpg"
-        }
+        B_image={boikhela}
         B_heading={"মাছ ধরা"}
         B_semiText={`${
           import.meta.env.VITE_SITE_NAME
@@ -117,42 +62,54 @@ const SportsBook = () => {
       />
       {/* Mobile slide menu */}
       <RouteChange text={"মাছ ধরা"} />
-      {/* Subcategories */}
-      {isSubcategoriesLoading ? (
-        <div className="text-center text-gray-500">Loading subcategories...</div>
-      ) : isSubcategoriesError ? (
-        <div className="text-center text-red-500">Error loading subcategories</div>
-      ) : buttons.length === 1 ? ( // Only "All" button exists
-        <div className="text-center text-gray-500">No subcategories available</div>
-      ) : (
-        <GameVendorList buttons={buttons} />
-      )}
+      {/* Provider Filter */}
+      <div className="container mx-auto px-4 sm:px-10 lg:px-24 mt-6">
+        <div className="flex flex-wrap gap-3 justify-center md:justify-start">
+          {providers.map((provider) => (
+            <button
+              key={provider}
+              onClick={() => setSelectedProvider(provider)}
+              className={`px-4 py-2 rounded-full font-medium text-sm md:text-base transition-all duration-300 ${
+                selectedProvider === provider
+                  ? "bg-yellow-500 text-white border border-yellow-600"
+                  : "bg-gray-100 text-gray-700 border border-gray-300 hover:bg-gray-200"
+              }`}
+            >
+              {provider}
+            </button>
+          ))}
+        </div>
+      </div>
       {/* Games */}
       <div className="container mx-auto px-4 sm:px-10 lg:px-24">
         <div className="mt-10 pb-10">
-          {isGamesLoading ? (
+          {loading ? (
             <div className="text-center text-gray-500">Loading games...</div>
-          ) : isGamesError ? (
-            <div className="text-center text-red-500">Error loading games</div>
-          ) : fishingGames.length === 0 ? (
+          ) : error ? (
+            <div className="text-center text-red-500">{error}</div>
+          ) : filteredGames.length === 0 ? (
             <div className="text-center text-gray-500">No games available</div>
           ) : (
             <div className="grid grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 md:gap-4 lg:gap-6">
-              {fishingGames.map((game) => (
+              {filteredGames.map((game) => (
                 <GameCard
-              demoId={game._id}
-
+                  demoId={game._id}
                   key={game._id}
-                  gameCardImg={`${import.meta.env.VITE_BASE_API_URL}${game.image}`}
-                    gameLink={game?.link ? game?.link : null }
-                  gameHot={
-                    game.badge
-                      ? game.badge === "hot"
-                        ? "https://www.babu88.app/static/image/other/hot-icon.png"
-                        : "https://www.babu88.app/static/svg/game-icon-new.svg"
-                      : null
-                  }
-                  gameHeading={game.title}
+                  gameCardImg={(function() {
+                    const BASE = "https://apigames.oracleapi.net/api/";
+                    const projectDocs = game.projectImageDocs || [];
+                    const babuDoc = Array.isArray(projectDocs)
+                      ? projectDocs.find((d) => d?.projectName?.title === "Babu88")
+                      : null;
+                    const raw = babuDoc?.image  || "";
+                    if (!raw) return "";
+                    const isAbs = /^https?:\/\//i.test(raw);
+                    return isAbs ? raw : `${BASE}${raw}`;
+                  })()}
+                  gameLink={game?.link ? game?.link : null}
+                  hot={game.hot}
+                  isNew={game.new}
+                  gameHeading={game.title || game.name} // Fallback to name if title is not available
                   headingCenter={true}
                 />
               ))}

@@ -16,7 +16,7 @@ const BettingPass = () => {
         />
         <div className="absolute top-20 md:top-28 left-1/2 transform -translate-x-1/2 space-y-3 text-center  px-6 py-10 md:p-10 w-10/12 md:w-auto rounded-2xl text-white bg-blue-700">
           <h2 className="text-xl font-semibold">
-            লগইন/রেজিস্টার করুন এখন BABU88 VIP হয়ে যান
+            লগইন/রেজিস্টার করুন এখন  VIP হয়ে যান - {import.meta.env.VITE_SITE_NAME}
           </h2>
           <p className="text-base font-semibold">
             প্রতি স্তরে বিনামূল্যে নগদ এবং একচেটিয়া পুরস্কার পান!

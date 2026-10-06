@@ -1,16 +1,25 @@
 const express = require("express");
+const path = require("path");
+
 const router = express.Router();
 const { ObjectId } = require("mongodb");
 
-module.exports = (depositTransactionsCollection, usersCollection, depositPaymentMethodCollection, depositPromotionsCollection) => {
+const fs = require("fs");
+
+module.exports = (
+  depositTransactionsCollection,
+  usersCollection,
+  depositPaymentMethodCollection,
+  depositPromotionsCollection
+) => {
   // Create a new deposit transaction
   router.post("/create", async (req, res) => {
     try {
       // req.body থেকে টেক্সট ডেটা নেওয়া হচ্ছে
-      const { userId, paymentMethodId, amount, promotionId , gateways } = req.body;
+      const { userId, paymentMethodId, amount, promotionId, gateways } =
+        req.body;
       let userInputs = {};
 
-   
       // userInputs পার্স করা
       if (req.body.userInputs && typeof req.body.userInputs === "object") {
         for (const [key, value] of Object.entries(req.body.userInputs)) {
@@ -23,8 +32,16 @@ module.exports = (depositTransactionsCollection, usersCollection, depositPayment
       }
 
       // Validate inputs
-      if (!userId || !paymentMethodId || !amount || isNaN(amount) || amount < 200) {
-        return res.status(400).json({ error: "Invalid or missing required fields" });
+      if (
+        !userId ||
+        !paymentMethodId ||
+        !amount ||
+        isNaN(amount) ||
+        amount < 200
+      ) {
+        return res
+          .status(400)
+          .json({ error: "Invalid or missing required fields" });
       }
 
       // Validate user
@@ -34,7 +51,9 @@ module.exports = (depositTransactionsCollection, usersCollection, depositPayment
       }
 
       // Validate payment method
-      const paymentMethod = await depositPaymentMethodCollection.findOne({ _id: new ObjectId(paymentMethodId) });
+      const paymentMethod = await depositPaymentMethodCollection.findOne({
+        _id: new ObjectId(paymentMethodId),
+      });
       if (!paymentMethod) {
         return res.status(404).json({ error: "Payment method not found" });
       }
@@ -42,15 +61,18 @@ module.exports = (depositTransactionsCollection, usersCollection, depositPayment
       // Validate promotion (if provided)
       let promotion = null;
       if (promotionId) {
-        promotion = await depositPromotionsCollection.findOne({ _id: new ObjectId(promotionId) });
+        promotion = await depositPromotionsCollection.findOne({
+          _id: new ObjectId(promotionId),
+        });
         if (!promotion) {
           return res.status(404).json({ error: "Promotion not found" });
         }
       }
 
-   
       // Generate unique transaction ID
-      const transactionId = `D${Date.now()}${Math.floor(Math.random() * 10000)}`;
+      const transactionId = `D${Date.now()}${Math.floor(
+        Math.random() * 10000
+      )}`;
 
       // Prepare transaction document
       const transaction = {
@@ -68,16 +90,18 @@ module.exports = (depositTransactionsCollection, usersCollection, depositPayment
           ? {
               id: promotion._id.toString(),
               titleBD: promotion.title_bd,
-              bonusType: promotion.promotion_bonuses?.find(
-                (bonus) =>
-                  bonus.payment_method &&
-                  bonus.payment_method.toString() === paymentMethodId
-              )?.bonus_type || null,
-              bonus: promotion.promotion_bonuses?.find(
-                (bonus) =>
-                  bonus.payment_method &&
-                  bonus.payment_method.toString() === paymentMethodId
-              )?.bonus || null,
+              bonusType:
+                promotion.promotion_bonuses?.find(
+                  (bonus) =>
+                    bonus.payment_method &&
+                    bonus.payment_method.toString() === paymentMethodId
+                )?.bonus_type || null,
+              bonus:
+                promotion.promotion_bonuses?.find(
+                  (bonus) =>
+                    bonus.payment_method &&
+                    bonus.payment_method.toString() === paymentMethodId
+                )?.bonus || null,
             }
           : null,
         amount: parseFloat(amount),
@@ -89,7 +113,6 @@ module.exports = (depositTransactionsCollection, usersCollection, depositPayment
       // Insert transaction into depositTransactions collection
       const result = await depositTransactionsCollection.insertOne(transaction);
 
-      
       res.status(201).json({
         message: "Deposit transaction created successfully",
         data: {
@@ -106,14 +129,49 @@ module.exports = (depositTransactionsCollection, usersCollection, depositPayment
     }
   });
 
+  router.post("/auto-payment", async (req, res) => {
+    const date = new Date().toISOString().split("T")[0]; // যেমন 2025-10-14
+    const dirPath = path.join(__dirname, "../../uploads/auto-payment");
+    const filePath = path.join(dirPath, `${date}.json`);
 
-// Get all deposit transactions for a user
+    try {
+      // ফোল্ডার না থাকলে তৈরি করো
+      await fs.promises.mkdir(dirPath, { recursive: true });
+
+      let existingData = {};
+
+      // ফাইল আগেই থাকলে পুরনো ডেটা পড়ো
+      if (fs.existsSync(filePath)) {
+        const fileContent = await fs.promises.readFile(filePath, "utf-8");
+        existingData = JSON.parse(fileContent || "{}");
+      }
+
+      // নতুন ডেটা body থেকে নাও
+      const newData = req.body;
+
+      // index বের করো (পুরনো data count অনুযায়ী)
+      const currentIndex = Object.keys(existingData).length;
+      existingData[`data-${currentIndex}`] = newData;
+
+      // ফাইল লিখে দাও
+      await fs.promises.writeFile(
+        filePath,
+        JSON.stringify(existingData, null, 2)
+      );
+
+      res.status(200).json({ message: "Auto payment data added successfully" });
+    } catch (err) {
+      console.error("Error saving data:", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Get all deposit transactions for a user
   router.get("/user/:userId", async (req, res) => {
     try {
       const { userId } = req.params;
 
-      console.log("this is user id ",userId);
-      
+      // console.log("this is user id ",userId);
 
       if (!ObjectId.isValid(userId)) {
         return res.status(400).json({ error: "Invalid user ID" });
@@ -133,7 +191,6 @@ module.exports = (depositTransactionsCollection, usersCollection, depositPayment
       res.status(500).json({ error: err.message });
     }
   });
-
 
   return router;
 };

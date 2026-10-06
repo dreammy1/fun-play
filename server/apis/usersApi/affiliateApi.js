@@ -164,7 +164,7 @@ const affiliateApi = (usersCollection, homeControlsCollection) => {
         }
 
         const logoUrl = `${process.env.CLIENT_URL}${logoData.image}`;
-        console.log("logo", logoUrl);
+        // console.log("logo", logoUrl);
 
         const result = await usersCollection.updateOne(
           { _id: new ObjectId(id), role: "affiliate" },

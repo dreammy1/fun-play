@@ -1,0 +1,12 @@
+/* DemoGame.css */
+.loader {
+  border-top-color: #3b82f6; /* হালকা নীল রঙ */
+  border-bottom-color: #3b82f6;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+

@@ -12,7 +12,7 @@ const promotionApi = baseApi.injectEndpoints({
     }),
 
     getPromotions: builder.query({
-      query: () => "/promotions",
+      query: () => "/depositPromotions/deposit-promotions",
       providesTags: ["promotions"],
     }),
 

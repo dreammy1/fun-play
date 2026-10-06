@@ -179,11 +179,11 @@ const DashboardSidebar = ({ open, setOpen, menuItems }) => {
 
       {/* Modal */}
       <Modal
-        title="Opps!!"
+        title="দুক্ষিত স্যার!"
         isOpen={isModalOpen}
         onOpenChange={handleModalClose}
       >
-        <p>Please contact your developer team to connect API!!!</p>
+        <p>আপনি এই ফিচার টি ব্যাবহার করতে পারবেন না,  এটি ব্যাবহার করতে হলে আপনাকে Premium plagin ক্রয় করতে হবে।</p>
       </Modal>
     </div>
   );

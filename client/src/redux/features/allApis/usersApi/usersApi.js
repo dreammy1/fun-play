@@ -129,6 +129,19 @@ const usersApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: ["users"],
     }),
+
+
+
+     // ? get the user balance 
+     getUserBalance: builder.query({
+      query: (user_id) => ({
+        url: "/get-user-balance",
+        method: "POST",
+        body: { user_id },
+      }),
+      providesTags: ["users"],
+    }),
+
   }),
 });
 
@@ -147,4 +160,5 @@ export const {
   useUpdateAgentMutation,
   useUpdateUserProfileImageMutation,
   useLoginAsAgentMutation,
+  useGetUserBalanceMutation,
 } = usersApi;

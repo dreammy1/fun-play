@@ -12,12 +12,22 @@ export default function AddFeatures() {
     publish: "",
     desktop: "",
     jackpotImage: "",
-    secondaryBannerImage: "", // New field
-    referImage: { image: "", title: "", description: "", btnColor: "", btnTextColor: "", text: "", referTextColor: "" }, // New field
-    exclusiveImage: "", // New field
+    secondaryBannerImage: "",
+    referImage: {
+      image: "",
+      title: "",
+      description: "",
+      btnColor: "",
+      btnTextColor: "",
+      text: "",
+      referTextColor: "",
+      link: "",
+    },
+    exclusiveImage: "",
+    downloadImageForDesktop: "",
   });
-  const [newLink, setNewLink] = useState(""); // For featuresImageMobile links
-  const [desktopEntries, setDesktopEntries] = useState([]); // For temporary desktop entries
+  const [newLink, setNewLink] = useState("");
+  const [desktopEntries, setDesktopEntries] = useState([]);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState({
     featuresImageMobile: false,
@@ -27,14 +37,14 @@ export default function AddFeatures() {
     desktop: false,
     featuresImageDesktop: false,
     jackpotImage: false,
-    secondaryBannerImage: false, // New field
-    referImage: false, // New field
-    exclusiveImage: false, // New field
+    secondaryBannerImage: false,
+    referImage: false,
+    exclusiveImage: false,
+    downloadImageForDesktop: false,
   });
   const [docId, setDocId] = useState(null);
   const baseURL = import.meta.env.VITE_BASE_API_URL || "http://localhost:5000";
 
-  // Fetch existing data
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
@@ -67,9 +77,19 @@ export default function AddFeatures() {
               publish: "",
               desktop: "",
               jackpotImage: "",
-              secondaryBannerImage: "", // New field
-              referImage: { image: "", title: "", description: "", btnColor: "", btnTextColor: "", text: "", referTextColor: "" }, // New field
-              exclusiveImage: "", // New field
+              secondaryBannerImage: "",
+              referImage: {
+                image: "",
+                title: "",
+                description: "",
+                btnColor: "",
+                btnTextColor: "",
+                text: "",
+                referTextColor: "",
+                link: "",
+              },
+              exclusiveImage: "",
+              downloadImageForDesktop: "",
             });
           } else {
             throw new Error(errorData.error || "Failed to fetch data");
@@ -77,22 +97,38 @@ export default function AddFeatures() {
         } else {
           const fetchedData = await response.json();
           setData({
-            featuresImageMobile: fetchedData.featuresImageMobile || { image: "", links: [] },
+            featuresImageMobile: fetchedData.featuresImageMobile || {
+              image: "",
+              links: [],
+            },
             featuresImageDesktop: fetchedData.featuresImageDesktop || [],
             download: fetchedData.download || "",
             downloadApk: fetchedData.downloadApk || "",
             publish: fetchedData.publish || "",
             desktop: fetchedData.desktop || "",
             jackpotImage: fetchedData.jackpotImage || "",
-            secondaryBannerImage: fetchedData.secondaryBannerImage || "", // New field
-            referImage: fetchedData.referImage || { image: "", title: "", description: "", btnColor: "", btnTextColor: "", text: "", referTextColor: "" }, // New field
-            exclusiveImage: fetchedData.exclusiveImage || "", // New field
+            secondaryBannerImage: fetchedData.secondaryBannerImage || "",
+            referImage: fetchedData.referImage || {
+              image: "",
+              title: "",
+              description: "",
+              btnColor: "",
+              btnTextColor: "",
+              text: "",
+              referTextColor: "",
+              link: "",
+            },
+            exclusiveImage: fetchedData.exclusiveImage || "",
+            downloadImageForDesktop: fetchedData.downloadImageForDesktop || "",
           });
           setDocId(fetchedData._id || null);
         }
       } catch (err) {
         console.error("Fetch error:", err);
-        addToast(`Error: ${err.message}`, { appearance: "error", autoDismiss: true });
+        addToast(`Error: ${err.message}`, {
+          appearance: "error",
+          autoDismiss: true,
+        });
       } finally {
         setLoading(false);
       }
@@ -100,7 +136,6 @@ export default function AddFeatures() {
     fetchData();
   }, [addToast, baseURL]);
 
-  // Handle image or APK upload
   const handleFileUpload = async (e, field, isApk = false, index = null) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -110,64 +145,97 @@ export default function AddFeatures() {
 
     setUploading((prev) => ({ ...prev, [field]: true }));
     try {
-      const uploadResponse = await fetch(`${baseURL}/features-image/upload${isApk ? "-apk" : ""}`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
-        body: formData,
-      });
+      const uploadResponse = await fetch(
+        `${baseURL}/features-image/upload${isApk ? "-apk" : ""}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+          body: formData,
+        }
+      );
       if (!uploadResponse.ok) {
         const errorData = await uploadResponse.json();
-        throw new Error(errorData.error || `Failed to upload ${isApk ? "APK" : "image"}`);
+        throw new Error(
+          errorData.error || `Failed to upload ${isApk ? "APK" : "image"}`
+        );
       }
       const uploadData = await uploadResponse.json();
       const fileLink = uploadData.filePath;
 
       if (field === "featuresImageDesktop") {
         const updatedDesktopEntries = [...desktopEntries];
-        updatedDesktopEntries[index] = { ...updatedDesktopEntries[index], image: fileLink };
+        updatedDesktopEntries[index] = {
+          ...updatedDesktopEntries[index],
+          image: fileLink,
+        };
         setDesktopEntries(updatedDesktopEntries);
       } else {
         const updatePayload = {};
         if (field === "featuresImageMobile") {
-          updatePayload.featuresImageMobile = { ...data.featuresImageMobile, image: fileLink };
+          updatePayload.featuresImageMobile = {
+            ...data.featuresImageMobile,
+            image: fileLink,
+          };
         } else if (field === "referImage") {
           updatePayload.referImage = { ...data.referImage, image: fileLink };
         } else {
           updatePayload[field] = fileLink;
         }
 
-        const updateResponse = await fetch(`${baseURL}/features-image/${docId}`, {
-          method: "PUT",
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(updatePayload),
-        });
+        const updateResponse = await fetch(
+          `${baseURL}/features-image/${docId}`,
+          {
+            method: "PUT",
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem("token")}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(updatePayload),
+          }
+        );
         if (!updateResponse.ok) {
           const errorData = await updateResponse.json();
           throw new Error(errorData.error || "Failed to update file");
         }
         setData((prev) => ({
           ...prev,
-          [field]: field === "featuresImageMobile" ? { ...prev.featuresImageMobile, image: fileLink } : field === "referImage" ? { ...prev.referImage, image: fileLink } : fileLink,
+          [field]:
+            field === "featuresImageMobile"
+              ? { ...prev.featuresImageMobile, image: fileLink }
+              : field === "referImage"
+              ? { ...prev.referImage, image: fileLink }
+              : fileLink,
         }));
       }
-      addToast(`${isApk ? "APK" : "Image"} uploaded successfully`, { appearance: "success", autoDismiss: true });
+      addToast(`${isApk ? "APK" : "Image"} uploaded successfully`, {
+        appearance: "success",
+        autoDismiss: true,
+      });
     } catch (err) {
       console.error("Upload error:", err);
-      addToast(`Error: ${err.message}`, { appearance: "error", autoDismiss: true });
+      addToast(`Error: ${err.message}`, {
+        appearance: "error",
+        autoDismiss: true,
+      });
     } finally {
       setUploading((prev) => ({ ...prev, [field]: false }));
     }
   };
 
-  // Handle text field updates for referImage
-  const handleReferTextUpdate = async (field, value) => {
+  const handleReferTextUpdate = (field, value) => {
+    // Update local state only
+    setData((prev) => ({
+      ...prev,
+      referImage: { ...prev.referImage, [field]: value },
+    }));
+  };
+
+  const handleReferSubmit = async () => {
+    // Submit all referImage fields to the backend
     const updatePayload = {
-      referImage: { ...data.referImage, [field]: value },
+      referImage: { ...data.referImage },
     };
     try {
       const updateResponse = await fetch(`${baseURL}/features-image/${docId}`, {
@@ -182,18 +250,19 @@ export default function AddFeatures() {
         const errorData = await updateResponse.json();
         throw new Error(errorData.error || "Failed to update refer image data");
       }
-      setData((prev) => ({
-        ...prev,
-        referImage: { ...prev.referImage, [field]: value },
-      }));
-      addToast("Refer image data updated successfully", { appearance: "success", autoDismiss: true });
+      addToast("Refer image data updated successfully", {
+        appearance: "success",
+        autoDismiss: true,
+      });
     } catch (err) {
       console.error("Refer image update error:", err);
-      addToast(`Error: ${err.message}`, { appearance: "error", autoDismiss: true });
+      addToast(`Error: ${err.message}`, {
+        appearance: "error",
+        autoDismiss: true,
+      });
     }
   };
 
-  // Handle link addition for featuresImageMobile
   const handleAddLink = async () => {
     if (!newLink) return;
     const updatedLinks = [...data.featuresImageMobile.links, newLink];
@@ -204,7 +273,12 @@ export default function AddFeatures() {
           Authorization: `Bearer ${localStorage.getItem("token")}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ featuresImageMobile: { ...data.featuresImageMobile, links: updatedLinks } }),
+        body: JSON.stringify({
+          featuresImageMobile: {
+            ...data.featuresImageMobile,
+            links: updatedLinks,
+          },
+        }),
       });
       if (!updateResponse.ok) {
         const errorData = await updateResponse.json();
@@ -212,19 +286,29 @@ export default function AddFeatures() {
       }
       setData((prev) => ({
         ...prev,
-        featuresImageMobile: { ...prev.featuresImageMobile, links: updatedLinks },
+        featuresImageMobile: {
+          ...prev.featuresImageMobile,
+          links: updatedLinks,
+        },
       }));
       setNewLink("");
-      addToast("Link added successfully", { appearance: "success", autoDismiss: true });
+      addToast("Link added successfully", {
+        appearance: "success",
+        autoDismiss: true,
+      });
     } catch (err) {
       console.error("Link update error:", err);
-      addToast(`Error: ${err.message}`, { appearance: "error", autoDismiss: true });
+      addToast(`Error: ${err.message}`, {
+        appearance: "error",
+        autoDismiss: true,
+      });
     }
   };
 
-  // Handle link deletion for featuresImageMobile
   const handleDeleteLink = async (index) => {
-    const updatedLinks = data.featuresImageMobile.links.filter((_, i) => i !== index);
+    const updatedLinks = data.featuresImageMobile.links.filter(
+      (_, i) => i !== index
+    );
     try {
       const updateResponse = await fetch(`${baseURL}/features-image/${docId}`, {
         method: "PUT",
@@ -232,7 +316,12 @@ export default function AddFeatures() {
           Authorization: `Bearer ${localStorage.getItem("token")}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ featuresImageMobile: { ...data.featuresImageMobile, links: updatedLinks } }),
+        body: JSON.stringify({
+          featuresImageMobile: {
+            ...data.featuresImageMobile,
+            links: updatedLinks,
+          },
+        }),
       });
       if (!updateResponse.ok) {
         const errorData = await updateResponse.json();
@@ -240,32 +329,44 @@ export default function AddFeatures() {
       }
       setData((prev) => ({
         ...prev,
-        featuresImageMobile: { ...prev.featuresImageMobile, links: updatedLinks },
+        featuresImageMobile: {
+          ...prev.featuresImageMobile,
+          links: updatedLinks,
+        },
       }));
-      addToast("Link deleted successfully", { appearance: "success", autoDismiss: true });
+      addToast("Link deleted successfully", {
+        appearance: "success",
+        autoDismiss: true,
+      });
     } catch (err) {
       console.error("Link delete error:", err);
-      addToast(`Error: ${err.message}`, { appearance: "error", autoDismiss: true });
+      addToast(`Error: ${err.message}`, {
+        appearance: "error",
+        autoDismiss: true,
+      });
     }
   };
 
-  // Handle desktop entry addition
   const handleAddDesktopEntry = () => {
     setDesktopEntries((prev) => [...prev, { image: "", link: "" }]);
   };
 
-  // Handle desktop entry update
   const handleUpdateDesktopEntry = (index, field, value) => {
     const updatedDesktopEntries = [...desktopEntries];
-    updatedDesktopEntries[index] = { ...updatedDesktopEntries[index], [field]: value };
+    updatedDesktopEntries[index] = {
+      ...updatedDesktopEntries[index],
+      [field]: value,
+    };
     setDesktopEntries(updatedDesktopEntries);
   };
 
-  // Save desktop entry to database
   const handleSaveDesktopEntry = async (index) => {
     const entry = desktopEntries[index];
     if (!entry.image || !entry.link) {
-      addToast("Both image and link are required to save the entry", { appearance: "error", autoDismiss: true });
+      addToast("Both image and link are required to save the entry", {
+        appearance: "error",
+        autoDismiss: true,
+      });
       return;
     }
 
@@ -283,16 +384,24 @@ export default function AddFeatures() {
         const errorData = await updateResponse.json();
         throw new Error(errorData.error || "Failed to save desktop entry");
       }
-      setData((prev) => ({ ...prev, featuresImageDesktop: updatedDesktopEntries }));
-      setDesktopEntries((prev) => prev.filter((_, i) => i !== index)); // Remove from temporary entries
-      addToast("Desktop entry saved successfully", { appearance: "success", autoDismiss: true });
+      setData((prev) => ({
+        ...prev,
+        featuresImageDesktop: updatedDesktopEntries,
+      }));
+      setDesktopEntries((prev) => prev.filter((_, i) => i !== index));
+      addToast("Desktop entry saved successfully", {
+        appearance: "success",
+        autoDismiss: true,
+      });
     } catch (err) {
       console.error("Desktop entry save error:", err);
-      addToast(`Error: ${err.message}`, { appearance: "error", autoDismiss: true });
+      addToast(`Error: ${err.message}`, {
+        appearance: "error",
+        autoDismiss: true,
+      });
     }
   };
 
-  // Handle image or APK delete
   const handleDelete = async (field, isApk = false, index = null) => {
     if (!docId) return;
     try {
@@ -321,13 +430,28 @@ export default function AddFeatures() {
       }
       const updatePayload = {};
       if (field === "featuresImageMobile") {
-        updatePayload.featuresImageMobile = { image: "", links: data.featuresImageMobile.links };
+        updatePayload.featuresImageMobile = {
+          image: "",
+          links: data.featuresImageMobile.links,
+        };
       } else if (field === "featuresImageDesktop" && index !== null) {
         const updatedDesktopEntries = [...data.featuresImageDesktop];
-        updatedDesktopEntries[index] = { ...updatedDesktopEntries[index], image: "" };
+        updatedDesktopEntries[index] = {
+          ...updatedDesktopEntries[index],
+          image: "",
+        };
         updatePayload.featuresImageDesktop = updatedDesktopEntries;
       } else if (field === "referImage") {
-        updatePayload.referImage = { image: "", title: data.referImage.title, description: data.referImage.description, btnColor: data.referImage.btnColor, btnTextColor: data.referImage.btnTextColor, text: data.referImage.text, referTextColor: data.referImage.referTextColor };
+        updatePayload.referImage = {
+          image: "",
+          title: data.referImage.title,
+          description: data.referImage.description,
+          btnColor: data.referImage.btnColor,
+          btnTextColor: data.referImage.btnTextColor,
+          text: data.referImage.text,
+          referTextColor: data.referImage.referTextColor,
+          link: data.referImage.link,
+        };
       } else {
         updatePayload[field] = "";
       }
@@ -341,29 +465,44 @@ export default function AddFeatures() {
       });
       if (!updateResponse.ok) {
         const errorData = await updateResponse.json();
-        throw new Error(errorData.error || `Failed to delete ${isApk ? "APK" : "image"}`);
+        throw new Error(
+          errorData.error || `Failed to delete ${isApk ? "APK" : "image"}`
+        );
       }
       if (isApk) {
         setData((prev) => ({ ...prev, downloadApk: "" }));
       } else if (field === "featuresImageMobile") {
-        setData((prev) => ({ ...prev, featuresImageMobile: { ...prev.featuresImageMobile, image: "" } }));
+        setData((prev) => ({
+          ...prev,
+          featuresImageMobile: { ...prev.featuresImageMobile, image: "" },
+        }));
       } else if (field === "featuresImageDesktop" && index !== null) {
-        setData((prev) => ({ ...prev, featuresImageDesktop: updatePayload.featuresImageDesktop }));
+        setData((prev) => ({
+          ...prev,
+          featuresImageDesktop: updatePayload.featuresImageDesktop,
+        }));
       } else if (field === "referImage") {
         setData((prev) => ({ ...prev, referImage: updatePayload.referImage }));
       } else {
         setData((prev) => ({ ...prev, [field]: "" }));
       }
-      addToast(`${isApk ? "APK" : "Image"} deleted successfully`, { appearance: "success", autoDismiss: true });
+      addToast(`${isApk ? "APK" : "Image"} deleted successfully`, {
+        appearance: "success",
+        autoDismiss: true,
+      });
     } catch (err) {
       console.error("Delete error:", err);
-      addToast(`Error: ${err.message}`, { appearance: "error", autoDismiss: true });
+      addToast(`Error: ${err.message}`, {
+        appearance: "error",
+        autoDismiss: true,
+      });
     }
   };
 
-  // Handle desktop entry deletion
   const handleDeleteDesktopEntry = async (index) => {
-    const updatedDesktopEntries = data.featuresImageDesktop.filter((_, i) => i !== index);
+    const updatedDesktopEntries = data.featuresImageDesktop.filter(
+      (_, i) => i !== index
+    );
     try {
       if (data.featuresImageDesktop[index].image) {
         await fetch(`${baseURL}/delete`, {
@@ -372,7 +511,9 @@ export default function AddFeatures() {
             Authorization: `Bearer ${localStorage.getItem("token")}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ filePath: data.featuresImageDesktop[index].image }),
+          body: JSON.stringify({
+            filePath: data.featuresImageDesktop[index].image,
+          }),
         });
       }
       const updateResponse = await fetch(`${baseURL}/features-image/${docId}`, {
@@ -387,15 +528,23 @@ export default function AddFeatures() {
         const errorData = await updateResponse.json();
         throw new Error(errorData.error || "Failed to delete desktop entry");
       }
-      setData((prev) => ({ ...prev, featuresImageDesktop: updatedDesktopEntries }));
-      addToast("Desktop entry deleted successfully", { appearance: "success", autoDismiss: true });
+      setData((prev) => ({
+        ...prev,
+        featuresImageDesktop: updatedDesktopEntries,
+      }));
+      addToast("Desktop entry deleted successfully", {
+        appearance: "success",
+        autoDismiss: true,
+      });
     } catch (err) {
       console.error("Desktop entry delete error:", err);
-      addToast(`Error: ${err.message}`, { appearance: "error", autoDismiss: true });
+      addToast(`Error: ${err.message}`, {
+        appearance: "error",
+        autoDismiss: true,
+      });
     }
   };
 
-  // Handle temporary desktop entry deletion
   const handleDeleteTempDesktopEntry = (index) => {
     setDesktopEntries((prev) => prev.filter((_, i) => i !== index));
   };
@@ -403,7 +552,9 @@ export default function AddFeatures() {
   return (
     <div className="container mx-auto p-4 sm:p-6 bg-gray-100">
       <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6">
-        <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-6">Manage Feature Images</h2>
+        <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-6">
+          Manage Feature Images
+        </h2>
         {loading ? (
           <div className="text-center py-10">
             <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
@@ -411,10 +562,10 @@ export default function AddFeatures() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Features Image Mobile */}
             <div className="border border-[#14805e] p-4 rounded-md">
-              <label className="block text-sm font-medium text-gray-700 mb-2">OFFICIAL BRAND
-AMBASSADOR Mobile</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Top Banner -1
+              </label>
               {data.featuresImageMobile.image ? (
                 <div className="relative">
                   <img
@@ -433,12 +584,16 @@ AMBASSADOR Mobile</label>
                 <div className="w-full h-40 flex items-center justify-center bg-gray-200 rounded-md">
                   <label className="cursor-pointer flex flex-col items-center">
                     <FaUpload className="text-2xl text-gray-500" />
-                    <span className="text-sm text-gray-600 mt-2">Upload Features Image Mobile</span>
+                    <span className="text-sm text-gray-600 mt-2">
+                      Upload Features Image Mobile
+                    </span>
                     <input
                       type="file"
                       accept="image/*"
                       className="hidden"
-                      onChange={(e) => handleFileUpload(e, "featuresImageMobile")}
+                      onChange={(e) =>
+                        handleFileUpload(e, "featuresImageMobile")
+                      }
                       disabled={uploading.featuresImageMobile || !docId}
                     />
                   </label>
@@ -449,9 +604,10 @@ AMBASSADOR Mobile</label>
                   <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-white"></div>
                 </div>
               )}
-              {/* Links for Features Image Mobile */}
               <div className="mt-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Links</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Links
+                </label>
                 <div className="flex gap-2 mb-2">
                   <input
                     type="url"
@@ -472,7 +628,12 @@ AMBASSADOR Mobile</label>
                   <ul className="space-y-2">
                     {data.featuresImageMobile.links.map((link, index) => (
                       <li key={index} className="flex items-center gap-2">
-                        <a href={link} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                        <a
+                          href={link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:underline"
+                        >
                           {link}
                         </a>
                         <button
@@ -488,9 +649,10 @@ AMBASSADOR Mobile</label>
               </div>
             </div>
 
-            {/* Jackpot Image */}
             <div className="border border-[#14805e] p-4 rounded-md relative">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Jackpot Image</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Jackpot Image
+              </label>
               {data.jackpotImage ? (
                 <>
                   <img
@@ -509,7 +671,9 @@ AMBASSADOR Mobile</label>
                 <div className="w-full h-40 flex items-center justify-center bg-gray-200 rounded-md">
                   <label className="cursor-pointer flex flex-col items-center">
                     <FaUpload className="text-2xl text-gray-500" />
-                    <span className="text-sm text-gray-600 mt-2">Upload Jackpot Image</span>
+                    <span className="text-sm text-gray-600 mt-2">
+                      Upload Jackpot Image
+                    </span>
                     <input
                       type="file"
                       accept="image/*"
@@ -527,9 +691,10 @@ AMBASSADOR Mobile</label>
               )}
             </div>
 
-            {/* Secondary Banner Image */}
             <div className="border border-[#14805e] p-4 rounded-md relative">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Secondary Banner Image</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Secondary Banner Image
+              </label>
               {data.secondaryBannerImage ? (
                 <>
                   <img
@@ -548,12 +713,16 @@ AMBASSADOR Mobile</label>
                 <div className="w-full h-40 flex items-center justify-center bg-gray-200 rounded-md">
                   <label className="cursor-pointer flex flex-col items-center">
                     <FaUpload className="text-2xl text-gray-500" />
-                    <span className="text-sm text-gray-600 mt-2">Upload Secondary Banner Image</span>
+                    <span className="text-sm text-gray-600 mt-2">
+                      Upload Secondary Banner Image
+                    </span>
                     <input
                       type="file"
                       accept="image/*"
                       className="hidden"
-                      onChange={(e) => handleFileUpload(e, "secondaryBannerImage")}
+                      onChange={(e) =>
+                        handleFileUpload(e, "secondaryBannerImage")
+                      }
                       disabled={uploading.secondaryBannerImage || !docId}
                     />
                   </label>
@@ -566,9 +735,10 @@ AMBASSADOR Mobile</label>
               )}
             </div>
 
-            {/* Refer Image */}
             <div className="border border-[#14805e] p-4 rounded-md relative">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Refer Image</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Refer Image
+              </label>
               {data.referImage.image ? (
                 <>
                   <img
@@ -587,7 +757,9 @@ AMBASSADOR Mobile</label>
                 <div className="w-full h-40 flex items-center justify-center bg-gray-200 rounded-md">
                   <label className="cursor-pointer flex flex-col items-center">
                     <FaUpload className="text-2xl text-gray-500" />
-                    <span className="text-sm text-gray-600 mt-2">Upload Refer Image</span>
+                    <span className="text-sm text-gray-600 mt-2">
+                      Upload Refer Image
+                    </span>
                     <input
                       type="file"
                       accept="image/*"
@@ -605,77 +777,112 @@ AMBASSADOR Mobile</label>
               )}
               <div className="mt-4 grid grid-cols-1 gap-2">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Title
+                  </label>
                   <input
                     type="text"
                     value={data.referImage.title}
-                    onChange={(e) => handleReferTextUpdate("title", e.target.value)}
+                    onChange={(e) =>
+                      handleReferTextUpdate("title", e.target.value)
+                    }
                     placeholder="Enter title"
                     className="w-full p-2 border rounded-md"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Description
+                  </label>
                   <textarea
                     value={data.referImage.description}
-                    onChange={(e) => handleReferTextUpdate("description", e.target.value)}
+                    onChange={(e) =>
+                      handleReferTextUpdate("description", e.target.value)
+                    }
                     placeholder="Enter description"
                     className="w-full p-2 border rounded-md"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Button Color</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Button Color
+                  </label>
                   <input
                     type="color"
                     value={data.referImage.btnColor}
-                    onChange={(e) => handleReferTextUpdate("btnColor", e.target.value)}
+                    onChange={(e) =>
+                      handleReferTextUpdate("btnColor", e.target.value)
+                    }
                     className="w-full h-10 border rounded-md"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Button Text Color</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Button Text Color
+                  </label>
                   <input
                     type="color"
                     value={data.referImage.btnTextColor}
-                    onChange={(e) => handleReferTextUpdate("btnTextColor", e.target.value)}
+                    onChange={(e) =>
+                      handleReferTextUpdate("btnTextColor", e.target.value)
+                    }
                     className="w-full h-10 border rounded-md"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">ButtonText</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Button Text
+                  </label>
                   <input
                     type="text"
                     value={data.referImage.text}
-                    onChange={(e) => handleReferTextUpdate("text", e.target.value)}
+                    onChange={(e) =>
+                      handleReferTextUpdate("text", e.target.value)
+                    }
                     placeholder="Enter text"
                     className="w-full p-2 border rounded-md"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Link</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Link
+                  </label>
                   <input
                     type="text"
                     value={data.referImage.link}
-                    onChange={(e) => handleReferTextUpdate("link", e.target.value)}
-                    placeholder="Enter text"
+                    onChange={(e) =>
+                      handleReferTextUpdate("link", e.target.value)
+                    }
+                    placeholder="Enter link"
                     className="w-full p-2 border rounded-md"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Refer Text Color</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Refer Text Color
+                  </label>
                   <input
                     type="color"
                     value={data.referImage.referTextColor}
-                    onChange={(e) => handleReferTextUpdate("referTextColor", e.target.value)}
+                    onChange={(e) =>
+                      handleReferTextUpdate("referTextColor", e.target.value)
+                    }
                     className="w-full h-10 border rounded-md"
                   />
                 </div>
+                <button
+                  onClick={handleReferSubmit}
+                  className="mt-4 p-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 w-full"
+                >
+                  Submit Refer Image Data
+                </button>
               </div>
             </div>
 
-            {/* Exclusive Image */}
             <div className="border border-[#14805e] p-4 rounded-md relative">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Exclusive Image</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Gift & Promotion Banner
+              </label>
               {data.exclusiveImage ? (
                 <>
                   <img
@@ -694,7 +901,9 @@ AMBASSADOR Mobile</label>
                 <div className="w-full h-40 flex items-center justify-center bg-gray-200 rounded-md">
                   <label className="cursor-pointer flex flex-col items-center">
                     <FaUpload className="text-2xl text-gray-500" />
-                    <span className="text-sm text-gray-600 mt-2">Upload Exclusive Image</span>
+                    <span className="text-sm text-gray-600 mt-2">
+                      Upload Exclusive Image
+                    </span>
                     <input
                       type="file"
                       accept="image/*"
@@ -712,9 +921,54 @@ AMBASSADOR Mobile</label>
               )}
             </div>
 
-            {/* Features Image Desktop */}
+            <div className="border border-[#14805e] p-4 rounded-md relative">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                App Download Banner & App
+              </label>
+              {data.downloadImageForDesktop ? (
+                <>
+                  <img
+                    className="w-full h-40 object-cover rounded-md"
+                    src={`${baseURL}${data.downloadImageForDesktop}`}
+                    alt="Download Image for Desktop"
+                  />
+                  <button
+                    onClick={() => handleDelete("downloadImageForDesktop")}
+                    className="absolute top-2 right-2 p-2 group rounded-full bg-red-600 hover:bg-white duration-200"
+                  >
+                    <FaTrash className="text-xl text-white group-hover:text-red-600 duration-200" />
+                  </button>
+                </>
+              ) : (
+                <div className="w-full h-40 flex items-center justify-center bg-gray-200 rounded-md">
+                  <label className="cursor-pointer flex flex-col items-center">
+                    <FaUpload className="text-2xl text-gray-500" />
+                    <span className="text-sm text-gray-600 mt-2">
+                      Upload Download Image for Desktop
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) =>
+                        handleFileUpload(e, "downloadImageForDesktop")
+                      }
+                      disabled={uploading.downloadImageForDesktop || !docId}
+                    />
+                  </label>
+                </div>
+              )}
+              {uploading.downloadImageForDesktop && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-md">
+                  <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-white"></div>
+                </div>
+              )}
+            </div>
+
             <div className="border border-[#14805e] p-4 rounded-md">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Features Image Desktop</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Video & BG Banner
+              </label>
               <button
                 onClick={handleAddDesktopEntry}
                 className="mb-4 p-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
@@ -732,7 +986,9 @@ AMBASSADOR Mobile</label>
                           alt={`Features Image Desktop ${index + 1}`}
                         />
                         <button
-                          onClick={() => handleDelete("featuresImageDesktop", false, index)}
+                          onClick={() =>
+                            handleDelete("featuresImageDesktop", false, index)
+                          }
                           className="absolute top-2 right-2 p-2 group rounded-full bg-red-600 hover:bg-white duration-200"
                         >
                           <FaTrash className="text-xl text-white group-hover:text-red-600 duration-200" />
@@ -742,12 +998,21 @@ AMBASSADOR Mobile</label>
                       <div className="w-full h-40 flex items-center justify-center bg-gray-200 rounded-md">
                         <label className="cursor-pointer flex flex-col items-center">
                           <FaUpload className="text-2xl text-gray-500" />
-                          <span className="text-sm text-gray-600 mt-2">Upload Image</span>
+                          <span className="text-sm text-gray-600 mt-2">
+                            Upload Image
+                          </span>
                           <input
                             type="file"
                             accept="image/*"
                             className="hidden"
-                            onChange={(e) => handleFileUpload(e, "featuresImageDesktop", false, index)}
+                            onChange={(e) =>
+                              handleFileUpload(
+                                e,
+                                "featuresImageDesktop",
+                                false,
+                                index
+                              )
+                            }
                             disabled={uploading.featuresImageDesktop || !docId}
                           />
                         </label>
@@ -760,11 +1025,15 @@ AMBASSADOR Mobile</label>
                     )}
                   </div>
                   <div className="mt-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Link</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Link
+                    </label>
                     <input
                       type="url"
                       value={entry.link}
-                      onChange={(e) => handleUpdateDesktopEntry(index, "link", e.target.value)}
+                      onChange={(e) =>
+                        handleUpdateDesktopEntry(index, "link", e.target.value)
+                      }
                       placeholder="Enter link"
                       className="w-full p-2 border rounded-md"
                     />
@@ -777,9 +1046,11 @@ AMBASSADOR Mobile</label>
                   </button>
                 </div>
               ))}
-              {/* Temporary Desktop Entries */}
               {desktopEntries.map((entry, index) => (
-                <div key={`temp-${index}`} className="mb-4 p-4 border rounded-md">
+                <div
+                  key={`temp-${index}`}
+                  className="mb-4 p-4 border rounded-md"
+                >
                   <div className="relative">
                     {entry.image ? (
                       <>
@@ -789,7 +1060,9 @@ AMBASSADOR Mobile</label>
                           alt={`Temporary Desktop Image ${index + 1}`}
                         />
                         <button
-                          onClick={() => handleUpdateDesktopEntry(index, "image", "")}
+                          onClick={() =>
+                            handleUpdateDesktopEntry(index, "image", "")
+                          }
                           className="absolute top-2 right-2 p-2 group rounded-full bg-red-600 hover:bg-white duration-200"
                         >
                           <FaTrash className="text-xl text-white group-hover:text-red-600 duration-200" />
@@ -799,12 +1072,21 @@ AMBASSADOR Mobile</label>
                       <div className="w-full h-40 flex items-center justify-center bg-gray-200 rounded-md">
                         <label className="cursor-pointer flex flex-col items-center">
                           <FaUpload className="text-2xl text-gray-500" />
-                          <span className="text-sm text-gray-600 mt-2">Upload Image</span>
+                          <span className="text-sm text-gray-600 mt-2">
+                            Upload Image
+                          </span>
                           <input
                             type="file"
                             accept="image/*"
                             className="hidden"
-                            onChange={(e) => handleFileUpload(e, "featuresImageDesktop", false, index)}
+                            onChange={(e) =>
+                              handleFileUpload(
+                                e,
+                                "featuresImageDesktop",
+                                false,
+                                index
+                              )
+                            }
                             disabled={uploading.featuresImageDesktop || !docId}
                           />
                         </label>
@@ -817,11 +1099,15 @@ AMBASSADOR Mobile</label>
                     )}
                   </div>
                   <div className="mt-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Link</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Link
+                    </label>
                     <input
                       type="url"
                       value={entry.link}
-                      onChange={(e) => handleUpdateDesktopEntry(index, "link", e.target.value)}
+                      onChange={(e) =>
+                        handleUpdateDesktopEntry(index, "link", e.target.value)
+                      }
                       placeholder="Enter link"
                       className="w-full p-2 border rounded-md"
                     />
@@ -844,18 +1130,27 @@ AMBASSADOR Mobile</label>
               ))}
             </div>
 
-            {/* Other Fields */}
             {["download", "publish", "desktop"].map((field) => (
-              <div key={field} className="border border-[#14805e] p-4 rounded-md relative">
+              <div
+                key={field}
+                className="border border-[#14805e] p-4 rounded-md relative"
+              >
                 <label className="block text-sm font-medium text-gray-700 capitalize mb-2">
                   {field} {field === "download" ? "Image/APK" : "Image"}
                 </label>
                 {field === "download" && (
                   <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Download APK</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Download APK
+                    </label>
                     {data.downloadApk ? (
                       <div className="flex items-center gap-4">
-                        <a href={`${baseURL}${data.downloadApk}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                        <a
+                          href={`${baseURL}${data.downloadApk}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:underline"
+                        >
                           View APK
                         </a>
                         <button
@@ -868,12 +1163,16 @@ AMBASSADOR Mobile</label>
                     ) : (
                       <label className="cursor-pointer flex flex-col items-center">
                         <FaUpload className="text-2xl text-gray-500" />
-                        <span className="text-sm text-gray-600 mt-2">Upload APK</span>
+                        <span className="text-sm text-gray-600 mt-2">
+                          Upload APK
+                        </span>
                         <input
                           type="file"
                           accept=".apk"
                           className="hidden"
-                          onChange={(e) => handleFileUpload(e, "downloadApk", true)}
+                          onChange={(e) =>
+                            handleFileUpload(e, "downloadApk", true)
+                          }
                           disabled={uploading.download || !docId}
                         />
                       </label>
@@ -898,7 +1197,9 @@ AMBASSADOR Mobile</label>
                   <div className="w-full h-40 flex items-center justify-center bg-gray-200 rounded-md">
                     <label className="cursor-pointer flex flex-col items-center">
                       <FaUpload className="text-2xl text-gray-500" />
-                      <span className="text-sm text-gray-600 mt-2 capitalize">{field} Image</span>
+                      <span className="text-sm text-gray-600 mt-2 capitalize">
+                        {field} Image
+                      </span>
                       <input
                         type="file"
                         accept="image/*"

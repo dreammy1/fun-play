@@ -130,7 +130,7 @@ const DashboardMobileMenu = ({ open, menuItems }) => {
                   <ul className="py-2">
                     <li>
                       <Link
-                        to={`/cashagent/profile/${user?._id}`}
+                        to={`/dashboard/admin-profile`}
                         className="block px-4 py-2 text-sm text-white hover:bg-blue-200 hover:text-black"
                         onClick={() => setIsDropdownOpen(false)}
                       >
@@ -255,11 +255,11 @@ const DashboardMobileMenu = ({ open, menuItems }) => {
 
       {/* Modal */}
       <Modal
-        title="Opps!!"
+        title="দুক্ষিত স্যার!"
         isOpen={isModalOpen}
         onOpenChange={() => setIsModalOpen(false)}
       >
-        <p>Please contact your developer team to connect API!!!</p>
+        <p>আপনি এই ফিচার টি ব্যাবহার করতে পারবেন না,  এটি ব্যাবহার করতে হলে আপনাকে Premium plagin ক্রয় করতে হবে।</p>
       </Modal>
     </>
   );

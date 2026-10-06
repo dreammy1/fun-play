@@ -1,5 +1,16 @@
 import { useEffect, useState } from "react";
-import { FaChevronRight, FaHistory, FaCalendarAlt, FaGift, FaBullhorn, FaCog, FaRedo, FaHome, FaUsers, FaEnvelope } from "react-icons/fa";
+import {
+  FaChevronRight,
+  FaHistory,
+  FaCalendarAlt,
+  FaGift,
+  FaBullhorn,
+  FaCog,
+  FaRedo,
+  FaHome,
+  FaUsers,
+  FaEnvelope,
+} from "react-icons/fa";
 import { motion, AnimatePresence, color } from "framer-motion";
 import { useSelector } from "react-redux";
 import { useLazyGetUserByIdQuery } from "@/redux/features/allApis/usersApi/usersApi";
@@ -7,55 +18,41 @@ import { TbCurrencyTaka } from "react-icons/tb";
 import { useToasts } from "react-toast-notifications";
 import { Link, useNavigate } from "react-router-dom";
 
-
-
 export default function ProfileAccount() {
-    const navigate = useNavigate();
+  const navigate = useNavigate();
   const [openAccordion, setOpenAccordion] = useState(null);
   const { addToast } = useToasts();
   const toggleAccordion = (index) => {
     setOpenAccordion(openAccordion === index ? null : index);
   };
 
-    const { mainColor , backgroundColor } = useSelector((state) => state.themeColor);
-
-
-
-
+  const { mainColor, backgroundColor } = useSelector(
+    (state) => state.themeColor
+  );
 
   const { user } = useSelector((state) => state.auth);
 
+  const [triggerGetUserById, { data: userData, isLoading, isError }] =
+    useLazyGetUserByIdQuery();
 
-    const [triggerGetUserById, { data: userData, isLoading,  isError }] =
-      useLazyGetUserByIdQuery();
-  
-    const getUserDataAgain = (props) => {
-      if (props) {
-
-        triggerGetUserById(props);
-        if (!isError) {
-          addToast("Amount refreshed successfully", { appearance: "success" });
-        } else {
-          addToast("Failed to refresh user data", { appearance: "error" });
-        }
-
-
-        triggerGetUserById(props);
+  const getUserDataAgain = (props) => {
+    if (props) {
+      triggerGetUserById(props);
+      if (!isError) {
+        addToast("Amount refreshed successfully", { appearance: "success" });
+      } else {
+        addToast("Failed to refresh user data", { appearance: "error" });
       }
-    };
-  
 
+      triggerGetUserById(props);
+    }
+  };
 
-    useEffect(() => {
-      if (user) {
-        triggerGetUserById(user._id);
-      }
-    }, [user, triggerGetUserById]);
-
-
-
-
-
+  useEffect(() => {
+    if (user) {
+      triggerGetUserById(user._id);
+    }
+  }, [user, triggerGetUserById]);
 
   const accordionItems = [
     {
@@ -63,7 +60,7 @@ export default function ProfileAccount() {
       label: "ইতিহাস",
       subItems: [
         { label: "বাজি ইতিহাস", link: "/profile/BettingHistory" },
-        { label: "টার্নওভার ইতিহাস", link: "profile/BettingHistory" },
+        { label: "টার্নওভার ইতিহাস" },
         { label: "ওয়ালেট ইতিহাস", link: "/profile/history" },
       ],
     },
@@ -71,19 +68,19 @@ export default function ProfileAccount() {
       icon: <FaCalendarAlt />,
       label: "বিশেষ",
       subItems: [
-        { label: "রেফারেল প্রোগ্রাম", link: "/profile/BettingHistory" },
+        { label: "রেফারেল প্রোগ্রাম", link: "/referral" },
         { label: "বেটিং পাস", link: "/profile/BettingHistory" },
-        { label: "অ্যাফিলিয়েট", link: "/profile/BettingHistory" },
+        { label: "অ্যাফিলিয়েট", link: "" },
       ],
     },
     {
       icon: <FaGift />,
       label: "পুরস্কার",
       subItems: [
-        { label: "দাবি ভাউচার", link: "/profile/BettingHistory" },
-        { label: "ভাগ্য ঘোরা", link: "/profile/BettingHistory" },
-        { label: "দৈনিক চেক ইন", link: "/profile/BettingHistory" },
-        { label: "রিওয়ার্ড স্টোর", link: "/profile/BettingHistory" },
+        { label: "দাবি ভাউচার", link: "" },
+        { label: "ভাগ্য ঘোরা", link: "" },
+        { label: "দৈনিক চেক ইন", link: "" },
+        { label: "রিওয়ার্ড স্টোর", link: "" },
       ],
     },
     {
@@ -111,23 +108,24 @@ export default function ProfileAccount() {
     <div className="max-w-md mx-auto p-1 font-solaimanlipi">
       {/* Top user and icons row */}
       <div className="flex items-center justify-between mb-6">
-      <div>
-         <div className="text-sm font-semibold">
-          {user.username}
+        <div>
+          <div className="text-sm font-semibold">{user.username}</div>
+          <span className="flex items-center">
+            ট {(userData?.balance || user?.balance || 0).toLocaleString()}
+            <motion.div
+            // animate={isLoading ? { rotate: 0 } : { rotate: 360 }}
+            //  transition={{ duration: 0.5, ease: "easeOut", repeat: Infinity }}
+            >
+              <FaRedo
+                className="w-3 h-3 ml-1 cursor-pointer"
+                onClick={() => {
+                  user && getUserDataAgain(user._id);
+                }}
+              />
+            </motion.div>
+          </span>
         </div>
-        <span className="flex items-center">
-          ট    {(userData?.balance || user?.balance || 0).toLocaleString()}
-          <motion.div
-           // animate={isLoading ? { rotate: 0 } : { rotate: 360 }}
-          //  transition={{ duration: 0.5, ease: "easeOut", repeat: Infinity }}
-          >
-            <FaRedo className="w-3 h-3 ml-1 cursor-pointer" onClick={() =>{ user &&
-                 getUserDataAgain(user._id) 
-              }} />
-          </motion.div>
-        </span>
-      </div>
-     
+
         <div className="flex space-x-4">
           <IconWithLabel
             icon={<FaHome className="w-5 h-5 " />}
@@ -140,25 +138,25 @@ export default function ProfileAccount() {
           <IconWithLabel
             icon={<FaGift className="w-5 h-5" />}
             label="পুরস্কার"
-      navigate={navigate}
+            navigate={navigate}
             link="/promotion"
-              bg={backgroundColor}
+            bg={backgroundColor}
             color={color}
           />
           <IconWithLabel
             icon={<FaUsers className="w-5 h-5" />}
-            label="সুপারিশ"
-      navigate={navigate}
+            label="রেফার"
+            navigate={navigate}
             link="/referral"
-              bg={backgroundColor}
+            bg={backgroundColor}
             color={color}
           />
           <IconWithLabel
             icon={<TbCurrencyTaka className="w-5 h-5" />}
             label="উত্তোলন"
-             navigate={navigate}
+            navigate={navigate}
             link="/profile/withdrawal"
-              bg={backgroundColor}
+            bg={backgroundColor}
             color={color}
           />
         </div>
@@ -178,8 +176,13 @@ export default function ProfileAccount() {
             height={48}
           />
           <div className="ml-4 flex-1">
-            <div className="font-extrabold text-black text-sm uppercase">MEMBER</div>
-            <div className="w-full h-px bg-white my-2" style={{ height: "3px" }} />
+            <div className="font-extrabold text-black text-sm uppercase">
+              MEMBER
+            </div>
+            <div
+              className="w-full h-px bg-white my-2"
+              style={{ height: "3px" }}
+            />
             <div className="flex items-center text-xs font-semibold text-black mt-1">
               <span className="flex-1">LV 1</span>
               <span className="flex-1 text-center">0/60000</span>
@@ -187,13 +190,18 @@ export default function ProfileAccount() {
             </div>
           </div>
         </div>
-        <div className="w-full h-px bg-gray-200 my-2" style={{ height: "1px" }} />
+        <div
+          className="w-full h-px bg-gray-200 my-2"
+          style={{ height: "1px" }}
+        />
         <motion.div
           className="text-xs font-semibold mt-1 cursor-pointer flex justify-between items-center text-black"
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
         >
-          <span className="flex items-center">VIP মেম্বারশিপের বিবরণ দেখুন</span>
+          <span className="flex items-center">
+            VIP মেম্বারশিপের বিবরণ দেখুন
+          </span>
           <FaChevronRight />
         </motion.div>
       </div>
@@ -247,14 +255,17 @@ export default function ProfileAccount() {
   );
 }
 
-function IconWithLabel({ icon, label ,link ,navigate}) {
+function IconWithLabel({ icon, label, link, navigate }) {
   return (
     <motion.div
       className="flex flex-col items-center text-xs "
       whileHover={{ scale: 1.1 }}
       transition={{ duration: 0.2 }}
     >
-      <div onClick={() => navigate(link)}  className=" text-white bg-gray-800 rounded-lg p-3 mb-1 flex justify-center items-center">
+      <div
+        onClick={() => navigate(link)}
+        className=" text-white bg-gray-800 rounded-lg p-3 mb-1 flex justify-center items-center"
+      >
         {icon}
       </div>
       <span>{label}</span>

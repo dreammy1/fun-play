@@ -94,7 +94,7 @@ const ImageVideoSlider = () => {
               className="w-full h-64 object-cover rounded-t-xl"
               src={featuresImage}
               alt={`Slide ${currentSlide.id}`}
-              onError={(e) => (e.target.src = fallbackImage)} // Fallback on image error
+           //   onError={(e) => (e.target.src = fallbackImage)} // Fallback on image error
             />
           </div>
         ) : (

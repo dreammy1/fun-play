@@ -14,6 +14,11 @@ const MegaMenu = ({ items }) => {
   const menuBackgroundColor = mainBackgroundColor || "#333333";
   const hoverColor = mainColor || "#FFCD03";
 
+
+
+  
+
+
   return (
     <div className="container mx-auto" style={{ backgroundColor: menuBackgroundColor }}>
        <style>
@@ -30,7 +35,7 @@ const MegaMenu = ({ items }) => {
             <img
               className="w-28 transition-all duration-300 menu-image"
               src={item.image}
-              alt={item.route.split("/").pop() || "Menu item"}
+              alt={ (item.route.split("/").pop() || "Menu item")}
             />
           </Link>
         ))}

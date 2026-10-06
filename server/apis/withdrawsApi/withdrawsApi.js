@@ -4,9 +4,52 @@ const { ObjectId } = require("mongodb");
 const withdrawsApi = (
   withdrawsCollection,
   usersCollection,
-  
+  settingsCollection
 ) => {
   const router = express.Router();
+
+  // Get withdraw settings
+  router.get("/settings", async (req, res) => {
+    try {
+      let settings = await settingsCollection.findOne({
+        name: "withdrawSettings",
+      });
+      if (!settings) {
+        // Default settings if not found
+        settings = {
+          name: "withdrawSettings",
+          minWithdraw: 0,
+        };
+      }
+      res.json({ success: true, settings });
+    } catch (error) {
+      res
+        .status(500)
+        .json({ success: false, message: "Failed to fetch settings." });
+    }
+  });
+
+  // Update withdraw settings
+  router.post("/settings", async (req, res) => {
+    try {
+      const { minWithdraw } = req.body;
+      const updatedSettings = {
+        $set: {
+          minWithdraw: Number(minWithdraw),
+        },
+      };
+      const result = await settingsCollection.updateOne(
+        { name: "withdrawSettings" },
+        updatedSettings,
+        { upsert: true }
+      );
+      res.json({ success: true, result });
+    } catch (error) {
+      res
+        .status(500)
+        .json({ success: false, message: "Failed to update settings." });
+    }
+  });
 
   //   add a deposit
   router.post("/", async (req, res) => {

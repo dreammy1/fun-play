@@ -40,15 +40,6 @@ export default function AllUser() {
     fetchUsers();
   }, [addToast, baseURL]);
 
-  // Format date
-  // const formatDate = (dateString) => {
-  //   if (!dateString) return "N/A";
-  //   return new Date(dateString).toLocaleString("en-US", {
-  //     dateStyle: "medium",
-  //     timeStyle: "short",
-  //   });
-  // };
-
   // Format currency
   const formatCurrency = (amount) => {
     return `৳${Number(amount || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}`;
@@ -62,60 +53,62 @@ export default function AllUser() {
 
   // Navigate to user details
   const goToDetails = (id) => {
-    // navigate(`/dashboard/user/userDetails/${id}`);
     navigate(`/dashboard/userDetails/${id}`);
   };
 
   return (
-    <div className="container mx-auto p-4 sm:p-6 bg-gray-100 min-h-screen">
-      <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6">
-        <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-6">All Users</h2>
+    <div className="container mx-auto p-6 bg-gradient-to-br from-gray-50 to-gray-100 min-h-screen">
+      <div className="bg-white rounded-2xl shadow-xl p-6 border border-gray-200">
+        <h2 className="text-2xl font-semibold text-gray-900 mb-6 tracking-tight">All Users</h2>
         {loading ? (
-          <div className="text-center py-10">
-            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
-            <p className="text-gray-600 mt-2">Loading...</p>
+          <div className="text-center py-12">
+            <div className="animate-spin rounded-full h-10 w-10 border-t-3 border-b-3 border-indigo-600 mx-auto"></div>
+            <p className="text-gray-500 mt-3 font-medium">Loading users...</p>
           </div>
         ) : users.length === 0 ? (
-          <div className="text-center py-10 text-gray-600 text-sm sm:text-base">
+          <div className="text-center py-12 text-gray-500 text-lg font-medium">
             No users found.
           </div>
         ) : (
           <>
             {/* Desktop: Table View */}
-            <div className="hidden sm:block overflow-x-auto">
+            <div className="hidden lg:block overflow-x-auto">
               <table className="min-w-full bg-white rounded-lg">
-                <thead className="bg-blue-600 text-white">
+                <thead className="bg-indigo-700 text-white">
                   <tr>
-                    <th className="py-3 px-4 text-left text-sm font-semibold">Username</th>
-                    <th className="py-3 px-4 text-left text-sm font-semibold">Phone Number</th>
-                    <th className="py-3 px-4 text-left text-sm font-semibold">Role</th>
-                    <th className="py-3 px-4 text-left text-sm font-semibold">Balance</th>
-                    <th className="py-3 px-4 text-left text-sm font-semibold">Total Deposit</th>
-                    <th className="py-3 px-4 text-left text-sm font-semibold">Actions</th>
+                    <th className="py-4 px-6 text-left text-sm font-semibold tracking-wide">Username</th>
+                    <th className="py-4 px-6 text-left text-sm font-semibold tracking-wide">Phone Number</th>
+                    <th className="py-4 px-6 text-left text-sm font-semibold tracking-wide">Role</th>
+                    <th className="py-4 px-6 text-left text-sm font-semibold tracking-wide">Balance</th>
+                    <th className="py-4 px-6 text-left text-sm font-semibold tracking-wide">Total Deposit</th>
+                    <th className="py-4 px-6 text-left text-sm font-semibold tracking-wide">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {users.map((user) => (
-                    <tr key={user._id} className="border-b hover:bg-gray-50 transition">
-                      <td className="py-3 px-4 text-sm text-gray-700">{user.username}</td>
-                      <td className="py-3 px-4 text-sm text-gray-700 flex items-center">
+                    <tr
+                      key={user._id}
+                      className="border-b border-gray-200 hover:bg-indigo-50 transition duration-200"
+                    >
+                      <td className="py-4 px-6 text-sm text-gray-800 font-medium">{user.username}</td>
+                      <td className="py-4 px-6 text-sm text-gray-800 flex items-center">
                         {user.number}
                         <button
-                          className="ml-2 text-blue-500 hover:text-blue-700"
+                          className="ml-3 text-indigo-600 hover:text-indigo-800 transition"
                           onClick={() => copyToClipboard(user.number)}
                         >
-                          <FaCopy />
+                          <FaCopy className="h-4 w-4" />
                         </button>
                       </td>
-                      <td className="py-3 px-4 text-sm text-gray-700 capitalize">{user.role}</td>
-                      <td className="py-3 px-4 text-sm text-gray-700">{formatCurrency(user.balance)}</td>
-                      <td className="py-3 px-4 text-sm text-gray-700">{formatCurrency(user.deposit)}</td>
-                      <td className="py-3 px-4 text-sm">
+                      <td className="py-4 px-6 text-sm text-gray-800 capitalize">{user.role}</td>
+                      <td className="py-4 px-6 text-sm text-gray-800">{formatCurrency(user.balance)}</td>
+                      <td className="py-4 px-6 text-sm text-gray-800">{formatCurrency(user.deposit)}</td>
+                      <td className="py-4 px-6 text-sm">
                         <button
                           onClick={() => goToDetails(user._id)}
-                          className="flex items-center text-blue-500 hover:text-blue-700"
+                          className="flex items-center text-indigo-600 hover:text-indigo-800 font-medium transition"
                         >
-                          <FaEye className="mr-1" /> Details
+                          <FaEye className="mr-2 h-4 w-4" /> Details
                         </button>
                       </td>
                     </tr>
@@ -125,42 +118,38 @@ export default function AllUser() {
             </div>
 
             {/* Mobile: Card View */}
-            <div className="block sm:hidden">
+            <div className="block lg:hidden">
               {users.map((user) => (
                 <div
                   key={user._id}
-                  className="bg-white rounded-lg shadow-md p-4 mb-4 hover:shadow-lg transition"
+                  className="bg-white rounded-xl shadow-md p-5 mb-4 hover:shadow-lg transition duration-200 border border-gray-100"
                 >
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="font-semibold text-sm text-gray-800">Username:</span>
-                    <span className="text-sm text-gray-600">{user.username}</span>
-                  </div>
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="font-semibold text-sm text-gray-800">Phone:</span>
+                  <div className="grid grid-cols-2 gap-2 mb-3">
+                    <span className="font-semibold text-sm text-gray-900">Username:</span>
+                    <span className="text-sm text-gray-700">{user.username}</span>
+                    <span className="font-semibold text-sm text-gray-900">Phone:</span>
                     <div className="flex items-center">
-                      <span className="text-sm text-gray-600">{user.number}</span>
+                      <span className="text-sm text-gray-700">{user.number}</span>
                       <button
-                        className="ml-2 text-blue-500 hover:text-blue-700"
+                        className="ml-2 text-indigo-600 hover:text-indigo-800 transition"
                         onClick={() => copyToClipboard(user.number)}
                       >
-                        <FaCopy />
+                        <FaCopy className="h-4 w-4" />
                       </button>
                     </div>
-                  </div>
-                  <div className="flex justify-between mb-2">
-                    <span className="font-semibold text-sm text-gray-800">Role:</span>
-                    <span className="text-sm text-gray-600 capitalize">{user.role}</span>
-                  </div>
-                  <div className="flex justify-between mb-2">
-                    <span className="font-semibold text-sm text-gray-800">Balance:</span>
-                    <span className="text-sm text-gray-600">{formatCurrency(user.balance)}</span>
+                    <span className="font-semibold text-sm text-gray-900">Role:</span>
+                    <span className="text-sm text-gray-700 capitalize">{user.role}</span>
+                    <span className="font-semibold text-sm text-gray-900">Balance:</span>
+                    <span className="text-sm text-gray-700">{formatCurrency(user.balance)}</span>
+                    <span className="font-semibold text-sm text-gray-900">Total Deposit:</span>
+                    <span className="text-sm text-gray-700">{formatCurrency(user.deposit)}</span>
                   </div>
                   <div className="flex justify-end">
                     <button
                       onClick={() => goToDetails(user._id)}
-                      className="flex items-center text-blue-500 hover:text-blue-700 text-sm"
+                      className="flex items-center text-indigo-600 hover:text-indigo-800 text-sm font-medium transition"
                     >
-                      <FaEye className="mr-1" /> Details
+                      <FaEye className="mr-2 h-4 w-4" /> Details
                     </button>
                   </div>
                 </div>

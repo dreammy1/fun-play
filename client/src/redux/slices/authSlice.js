@@ -13,6 +13,8 @@ const authSlice = createSlice({
   reducers: {
     setCredentials: (state, { payload }) => {
       state.token = payload.token;
+
+ 
       state.user = payload.user;
       state.isAuthenticated = true;
       localStorage.setItem("token", payload.token);
@@ -28,6 +30,11 @@ const authSlice = createSlice({
     },
     setSingleUser: (state, { payload }) => {
       state.singleUser = payload; // Update singleUser in the state
+
+           // console.log("this is user " ,payload );
+      
+
+
     },
   },
 });

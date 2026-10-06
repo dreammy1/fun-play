@@ -1,26 +1,101 @@
 const express = require("express");
 const { ObjectId } = require("mongodb");
 const { deleteFile } = require("../../utils");
+const axios = require("axios");
 
 const categoriesApi = (categoriesCollection) => {
   const router = express.Router();
+
+  // Get all user-created providers (distinct provider IDs from categories)
+  router.get("/providers", async (req, res) => {
+    try {
+      const providers = await categoriesCollection.find({}).toArray();
+
+      const { data: providerData } = await axios.get(
+        "https://apigames.oracleapi.net/api/providers",
+        {
+          headers: {
+            "x-api-key":
+              "b4fb7adb955b1078d8d38b54f5ad7be8ded17cfba85c37e4faa729ddd679d379",
+          },
+        }
+      );
+
+      const allProviders = providerData.success ? providerData.data : [];
+
+      const result = providers.map((item) => {
+        const found = allProviders.find((p) => p._id === item.provider);
+        return found
+          ? { ...item, providerName: found.name }
+          : { ...item, providerName: item.provider };
+      });
+
+      res.json({ success: true, data: result });
+    } catch (err) {
+      console.error("Error fetching user providers:", err.message);
+      res
+        .status(500)
+        .json({ success: false, error: "Failed to fetch providers" });
+    }
+  });
 
   // Add a category data
   router.post("/", async (req, res) => {
     const categoryInfo = req.body;
     categoryInfo.createdAt = new Date();
-    // Validate required fields
-    if (!categoryInfo.image || !categoryInfo.category || !categoryInfo.value || !categoryInfo.title) {
+
+    if (
+      !categoryInfo.image ||
+      !categoryInfo.iconImage ||
+      !categoryInfo.category ||
+      !categoryInfo.provider
+    ) {
       return res.status(400).json({ message: "Required fields are missing" });
     }
-    const result = await categoriesCollection.insertOne(categoryInfo);
+
+    const subcategoryDoc = {
+      image: categoryInfo.image,
+      iconImage: categoryInfo.iconImage,
+      category: categoryInfo.category,
+      provider: categoryInfo.provider,
+      createdAt: categoryInfo.createdAt,
+    };
+    const result = await categoriesCollection.insertOne(subcategoryDoc);
     res.send(result);
   });
 
-  // Get all category data
+  // Get all category data with provider info
   router.get("/", async (req, res) => {
-    const result = await categoriesCollection.find().toArray();
-    res.send(result);
+    try {
+      const { data: providerData } = await axios.get(
+        "https://apigames.oracleapi.net/api/providers",
+        {
+          headers: {
+            "x-api-key":
+              "b4fb7adb955b1078d8d38b54f5ad7be8ded17cfba85c37e4faa729ddd679d379",
+          },
+        }
+      );
+
+      const providers = providerData.success ? providerData.data : [];
+
+      const subcategories = await categoriesCollection.find().toArray();
+      const result = subcategories.map((subcat) => {
+        const provider = providers.find((p) => p._id === subcat.provider);
+        return {
+          ...subcat,
+          provider: provider || subcat.provider,
+        };
+      });
+      res.send(result);
+    } catch (err) {
+      console.error("Error:", err.message);
+      res.status(500).json({
+        message: "Failed to fetch subcategories with providers",
+        categories: await categoriesCollection.find().toArray(),
+        error: err.message,
+      });
+    }
   });
 
   // Update a category
@@ -28,7 +103,6 @@ const categoriesApi = (categoriesCollection) => {
     const { id } = req.params;
     const updateData = req.body;
 
-    // Validate ObjectId
     if (!ObjectId.isValid(id)) {
       return res.status(400).json({ message: "Invalid category ID" });
     }
@@ -41,26 +115,29 @@ const categoriesApi = (categoriesCollection) => {
         return res.status(404).json({ message: "Category not found" });
       }
 
-      // Only update provided fields
       const updateFields = {};
       if (updateData.image) updateFields.image = updateData.image;
       if (updateData.iconImage) updateFields.iconImage = updateData.iconImage;
       if (updateData.category) updateFields.category = updateData.category;
-      if (updateData.value) updateFields.value = updateData.value;
-      if (updateData.title) updateFields.title = updateData.title;
+      if (updateData.provider) updateFields.provider = updateData.provider;
 
-      // If no fields to update, return early
       if (Object.keys(updateFields).length === 0) {
-        return res.status(400).json({ message: "No valid fields provided for update" });
+        return res
+          .status(400)
+          .json({ message: "No valid fields provided for update" });
       }
 
-      const result = await categoriesCollection.updateOne(query, { $set: updateFields });
+      const result = await categoriesCollection.updateOne(query, {
+        $set: updateFields,
+      });
       if (result.modifiedCount === 0) {
-        return res.status(400).json({ message: "No changes made to the category" });
+        return res
+          .status(400)
+          .json({ message: "No changes made to the category" });
       }
       res.send(result);
     } catch (err) {
-      console.error(err);
+      console.error(err.message);
       res.status(500).json({ message: "Server error: " + err.message });
     }
   });
@@ -69,7 +146,6 @@ const categoriesApi = (categoriesCollection) => {
   router.delete("/:id", async (req, res) => {
     const { id } = req.params;
 
-    // Validate ObjectId
     if (!ObjectId.isValid(id)) {
       return res.status(400).json({ message: "Invalid category ID" });
     }
@@ -82,14 +158,13 @@ const categoriesApi = (categoriesCollection) => {
     }
 
     try {
-      // Delete both image and iconImage files
       if (category.image) await deleteFile(category.image);
       if (category.iconImage) await deleteFile(category.iconImage);
 
       const result = await categoriesCollection.deleteOne(query);
       res.send(result);
     } catch (err) {
-      console.error(err);
+      console.error(err.message);
       res.status(500).json({ message: "Server error: " + err.message });
     }
   });

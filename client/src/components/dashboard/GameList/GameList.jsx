@@ -1,25 +1,226 @@
-import DeleteModal from "@/components/shared/modal/DeleteModal";
 import { deleteImage, uploadImage } from "@/hooks/files";
-import {
-  useDeleteGameMutation,
-  useGetGamesQuery,
-  useUpdateGameMutation,
-} from "@/redux/features/allApis/gameApi/gameApi";
+import { useUpdateGameMutation } from "@/redux/features/allApis/gameApi/gameApi";
 import { useGetCategoriesQuery } from "@/redux/features/allApis/categoriesApi/categoriesApi";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useToasts } from "react-toast-notifications";
-import { FiEdit2, FiUpload, FiChevronDown, FiX } from "react-icons/fi";
+import { FiUpload, FiChevronDown, FiX } from "react-icons/fi";
+
+// Form component for updating image/hot/new for a game
+// Selection toggle component (saves only gameID)
+function SelectionToggle({ selected, onChange, saving }) {
+  return (
+    <label className="flex items-center gap-2 text-sm">
+      <input
+        type="checkbox"
+        checked={!!selected}
+        onChange={(e) => onChange(e.target.checked)}
+        disabled={saving}
+      />
+      <span>{selected ? "Selected" : "Select"}</span>
+    </label>
+  );
+}
+
+// Flag toggles (enabled when selected)
+function FlagToggles({ game, disabled, onSave, saving }) {
+  const [hot, setHot] = useState(!!game.hot);
+  const [isNew, setIsNew] = useState(!!game.new);
+  const [lobby, setLobby] = useState(!!game.lobby);
+
+  useEffect(() => {
+    setHot(!!game.hot);
+    setIsNew(!!game.new);
+    setLobby(!!game.lobby);
+  }, [game.hot, game.new, game.lobby]);
+
+  const save = async (patch) => {
+    await onSave({ hot, new: isNew, lobby, ...patch });
+  };
+
+  return (
+    <div className={`flex items-center gap-4 ${disabled ? "opacity-50" : ""}`}>
+      <label className="flex items-center gap-1 text-xs">
+        <input
+          type="checkbox"
+          checked={hot}
+          disabled={disabled || saving}
+          onChange={async (e) => {
+            const next = e.target.checked;
+            setHot(next);
+            await save({ hot: next });
+          }}
+        />
+        Hot
+      </label>
+      <label className="flex items-center gap-1 text-xs">
+        <input
+          type="checkbox"
+          checked={isNew}
+          disabled={disabled || saving}
+          onChange={async (e) => {
+            const next = e.target.checked;
+            setIsNew(next);
+            await save({ new: next });
+          }}
+        />
+        New
+      </label>
+      <label className="flex items-center gap-1 text-xs">
+        <input
+          type="checkbox"
+          checked={lobby}
+          disabled={disabled || saving}
+          onChange={async (e) => {
+            const next = e.target.checked;
+            setLobby(next);
+            await save({ lobby: next });
+          }}
+        />
+        Lobby
+      </label>
+    </div>
+  );
+}
 
 const GamesList = () => {
-  const { data: games = [], isLoading, isError, refetch } = useGetGamesQuery();
-  const { data: categoriesData = [], isLoading: isCategoriesLoading } = useGetCategoriesQuery();
-  const [deleteGame] = useDeleteGameMutation();
+  const { data: categoriesData = [], isLoading: isCategoriesLoading } =
+    useGetCategoriesQuery();
   const [updateGame] = useUpdateGameMutation();
+  // Upsert no longer used for images; selection saved via dedicated endpoint
   const { addToast } = useToasts();
+  const [providers, setProviders] = useState([]);
+  const [selectedProvider, setSelectedProvider] = useState("");
+  const [games, setGames] = useState([]);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isError, setIsError] = useState(false);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [savingId, setSavingId] = useState("");
+  const [savingFlagsId, setSavingFlagsId] = useState("");
 
-  // State for delete modal
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [item, setItem] = useState(null);
+  // Fetch only user-created providers from backend
+  useEffect(() => {
+    const fetchProviders = async () => {
+      try {
+        const res = await fetch(
+          `${import.meta.env.VITE_BASE_API_URL}/categories/providers`
+        );
+        const data = await res.json();
+        if (data.success) setProviders(data.data);
+      } catch (err) {
+        console.error("Failed to fetch user providers:", err);
+      }
+    };
+    fetchProviders();
+  }, []);
+
+  // Fetch paginated games via backend
+  useEffect(() => {
+    if (!selectedProvider) {
+      setGames([]);
+      setTotalPages(1);
+      setIsLoading(false);
+      return;
+    }
+    const fetchAndEnrichGames = async () => {
+      setIsLoading(true);
+      setIsError(false);
+      try {
+        const res = await fetch(
+          `${
+            import.meta.env.VITE_BASE_API_URL
+          }/games/by-provider/${selectedProvider}?page=${page}&limit=50`,
+          {
+            headers: { "Content-Type": "application/json" },
+          }
+        );
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(`Backend error: ${res.status} ${text}`);
+        }
+        const data = await res.json();
+        if (!data.success || !Array.isArray(data.data)) {
+          setGames([]);
+          setTotalPages(1);
+          setIsLoading(false);
+          return;
+        }
+        setGames(data.data);
+        setTotalPages(data.totalPages || 1);
+      } catch (err) {
+        setIsError(true);
+        setGames([]);
+        setTotalPages(1);
+        console.error("GameList fetch error:", err);
+      }
+      setIsLoading(false);
+    };
+    fetchAndEnrichGames();
+  }, [selectedProvider, page]);
+
+  // Fetch selected game IDs once
+  useEffect(() => {
+    const loadSelected = async () => {
+      try {
+        const res = await fetch(`${import.meta.env.VITE_BASE_API_URL}/games/selected`);
+        const data = await res.json();
+        if (data?.success && Array.isArray(data.data)) {
+          setSelectedIds(data.data);
+        }
+      } catch {
+        // ignore
+      }
+    };
+    loadSelected();
+  }, []);
+
+  const toggleSelect = async (gid, next) => {
+    try {
+      setSavingId(gid);
+      const res = await fetch(`${import.meta.env.VITE_BASE_API_URL}/games/selected`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ gameID: gid, selected: next }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.success === false) throw new Error(data.error || "Failed");
+      setSelectedIds((prev) => {
+        const set = new Set(prev);
+        if (next) set.add(gid);
+        else set.delete(gid);
+        return Array.from(set);
+      });
+    } catch (err) {
+      console.error("Selection save failed", err);
+      addToast("Failed to save selection", { appearance: "error", autoDismiss: true });
+    } finally {
+      setSavingId("");
+    }
+  };
+
+  const saveFlags = async (gameId, patch) => {
+    try {
+      setSavingFlagsId(gameId);
+      const res = await fetch(`${import.meta.env.VITE_BASE_API_URL}/games/upsert`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ gameID: gameId, ...patch }),
+      });
+      if (!res.ok) throw new Error("Failed to save flags");
+      // update local games state
+      setGames((prev) =>
+        prev.map((g) =>
+          g._id === gameId ? { ...g, ...patch } : g
+        )
+      );
+    } catch (err) {
+      console.error("Flag save failed", err);
+      addToast("Failed to save flags", { appearance: "error", autoDismiss: true });
+    } finally {
+      setSavingFlagsId("");
+    }
+  };
 
   // State for edit modal
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -33,14 +234,6 @@ const GamesList = () => {
     image: null,
     imagePreview: null,
     oldImage: null,
-  });
-
-  // State for filters
-  const [filters, setFilters] = useState({
-    category: "",
-    subcategory: "",
-    badge: "",
-    search: "",
   });
 
   const categories = [
@@ -70,41 +263,7 @@ const GamesList = () => {
       }));
   };
 
-  // Filter games based on all active filters
-  const filteredGames = games.filter((game) => {
-    return (
-      (filters.category === "" || game.category === filters.category) &&
-      (filters.subcategory === "" ||
-        game.subcategory === filters.subcategory) &&
-      (filters.badge === "" || game.badge === filters.badge) &&
-      (filters.search === "" ||
-        game.title.toLowerCase().includes(filters.search.toLowerCase()))
-    );
-  });
-
-  const handleFilterChange = (e) => {
-    const { name, value } = e.target;
-    setFilters((prev) => ({
-      ...prev,
-      [name]: value,
-      ...(name === "category" ? { subcategory: "" } : {}),
-    }));
-  };
-
-  const handleEdit = (game) => {
-    setEditFormData({
-      id: game._id,
-      title: game.title,
-      category: game.category,
-      subcategory: game.subcategory || "",
-      badge: game.badge || "",
-      link: game.link || "",
-      image: null,
-      imagePreview: `${import.meta.env.VITE_BASE_API_URL}${game.image}`,
-      oldImage: game.image,
-    });
-    setIsEditModalOpen(true);
-  };
+  // Edit flow currently not exposed in UI
 
   const handleEditChange = (e) => {
     const { name, value, files } = e.target;
@@ -128,9 +287,6 @@ const GamesList = () => {
 
   const handleEditSubmit = async (e) => {
     e.preventDefault();
-    //console.log("Submitting edit with ID:", editFormData.id);
-   // console.log("editFormData:", editFormData);
-
     if (!editFormData.id) {
       addToast("Invalid game ID", { appearance: "error", autoDismiss: true });
       return;
@@ -145,9 +301,7 @@ const GamesList = () => {
     };
 
     try {
-      // Handle image upload and delete old image if necessary
       if (editFormData.image && editFormData.oldImage) {
-    //    console.log("Deleting old image:", editFormData.oldImage);
         try {
           await deleteImage(editFormData.oldImage);
         } catch (err) {
@@ -161,10 +315,6 @@ const GamesList = () => {
         updateData.image = filePath;
       }
 
-      // console.log("Sending update request with:", {
-      //   id: editFormData.id,
-      //   ...updateData,
-      // });
       const result = await updateGame({
         id: editFormData.id,
         data: updateData,
@@ -187,7 +337,6 @@ const GamesList = () => {
           imagePreview: null,
           oldImage: null,
         });
-        refetch();
       } else {
         addToast("No changes made to the game", {
           appearance: "warning",
@@ -196,221 +345,127 @@ const GamesList = () => {
       }
     } catch (error) {
       console.error("Update error:", error);
-      addToast(error.data?.message || `Failed to update game: ${error.message}`, {
-        appearance: "error",
-        autoDismiss: true,
-      });
-    }
-  };
-
-  const handleDeleteButtonClick = (item) => {
-    setItem(item);
-    setIsDeleteModalOpen(true);
-  };
-
-  const handleDelete = async () => {
-    try {
-      const { message } = await deleteImage(item?.image);
-      if (message) {
-        const result = await deleteGame(item._id);
-        if (result.data.deletedCount > 0) {
-          addToast("Game deleted successfully", {
-            appearance: "success",
-            autoDismiss: true,
-          });
-          refetch();
-          setIsDeleteModalOpen(false);
+      addToast(
+        error.data?.message || `Failed to update game: ${error.message}`,
+        {
+          appearance: "error",
+          autoDismiss: true,
         }
-      }
-    } catch (error) {
-      addToast("Failed to delete game", { appearance: "error", autoDismiss: true });
-      console.error("Delete game error:", error);
+      );
     }
   };
+
+  // Delete flow currently not exposed in UI
+
+  // Delete flow removed from UI
 
   if (isLoading || isCategoriesLoading)
     return <div className="text-center py-8">Loading games...</div>;
   if (isError)
     return (
-      <div className="text-center py-8 text-red-500">Error loading games</div>
+      <div className="text-center py-8 text-red-500">
+        Error loading games. Check the browser console for details.
+      </div>
     );
 
   return (
     <div className="container mx-auto w-full md:w-3/4">
       <h1 className="text-3xl font-bold text-gray-800 mb-8">All Games</h1>
 
-      {/* Filters Section */}
+      {/* Provider Selection */}
       <div className="bg-white p-6 rounded-lg shadow-md mb-8">
-        <h2 className="text-xl font-semibold mb-4">Filters</h2>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {/* Search */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Search
-            </label>
-            <input
-              type="text"
-              name="search"
-              value={filters.search}
-              onChange={handleFilterChange}
-              placeholder="Game title..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-            />
-          </div>
+        <h2 className="text-xl font-semibold mb-4">Select Provider</h2>
+        <select
+          value={selectedProvider}
+          onChange={(e) => {
+            // console.log(e.target.value, selectedProvider);
 
-          {/* Category Filter */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Category
-            </label>
-            <select
-              name="category"
-              value={filters.category}
-              onChange={handleFilterChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+            setSelectedProvider(e.target.value);
+            setPage(1);
+          }}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+        >
+          <option value="">Select a provider</option>
+          {providers.map((prov) => (
+            <option
+              key={prov._id.provider || prov._id._id || prov._id._id}
+              value={prov.provider || prov._id.provider || prov._id.provider}
             >
-              <option value="">All Categories</option>
-              {categories.map((cat) => (
-                <option key={cat.value} value={cat.value}>
-                  {cat.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Subcategory Filter */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Subcategory
-            </label>
-            <select
-              name="subcategory"
-              value={filters.subcategory}
-              onChange={handleFilterChange}
-              disabled={!filters.category}
-              className={`w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 ${
-                !filters.category ? "bg-gray-100" : ""
-              }`}
-            >
-              <option value="">All Subcategories</option>
-              {getFilteredSubcategories(filters.category).map((sub) => (
-                <option key={sub.value} value={sub.value}>
-                  {sub.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Badge Filter */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Badge
-            </label>
-            <select
-              name="badge"
-              value={filters.badge}
-              onChange={handleFilterChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-            >
-              {badges.map((badge) => (
-                <option key={badge.value} value={badge.value}>
-                  {badge.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
+              {console.log(prov)}
+              {prov.name || prov._id.providerName || prov.providerName}
+            </option>
+          ))}
+        </select>
       </div>
 
       {/* Games Grid */}
-      {filteredGames.length === 0 ? (
+      {games.length === 0 ? (
         <div className="text-center py-12 bg-white rounded-lg shadow-md">
-          <p className="text-gray-500">
-            No games found matching your filters
-          </p>
+          <p className="text-gray-500">No games found for this provider</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {filteredGames.map((game) => (
+          {games.map((game) => (
             <div
               key={game._id}
               className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow"
             >
               {/* Game Image with Badge */}
               <div className="relative">
-                <img
-                  src={`${import.meta.env.VITE_BASE_API_URL}${game.image}`}
-                  alt={game.title}
-                  className="w-full h-48 object-cover"
-                />
-                {game.badge && (
-                  <span
-                    className={`absolute top-2 right-2 px-2 py-1 rounded-full text-xs font-bold text-white ${
-                      game.badge === "new" ? "bg-blue-500" : "bg-red-500"
-                    }`}
-                  >
-                    {game.badge.toUpperCase()}
+             
+                {(() => {
+                  const projectDocs = game.projectImageDocs || [];
+                  const babuDoc = Array.isArray(projectDocs)
+                    ? projectDocs.find((d) => d?.projectName?.title === "Babu88")
+                    : null;
+                  const rawPath = babuDoc?.image  || "";
+
+                  if (!rawPath) {
+                    return <div className="w-full h-48 bg-gray-100" />;
+                  }
+
+                  const isAbsolute = /^https?:\/\//i.test(rawPath);
+                  const src = isAbsolute
+                    ? rawPath
+                    : `https://apigames.oracleapi.net/api/${rawPath}`;
+
+                  return (
+                    <img
+                      src={src}
+                      alt={game.name}
+                      className="w-full h-48 object-cover"
+                    />
+                  );
+                })()}
+                {game.hot && (
+                  <span className="absolute top-2 right-2 bg-red-500 text-white px-2 py-1 rounded text-xs">
+                    Hot
+                  </span>
+                )}
+                {game.new && (
+                  <span className="absolute top-2 left-2 bg-green-500 text-white px-2 py-1 rounded text-xs">
+                    New
                   </span>
                 )}
               </div>
 
-              {/* Game Info */}
+              {/* Game Info and Update Form */}
               <div className="p-4">
-                <div className="flex justify-between items-start mb-2">
-                  <h3 className="font-bold text-lg truncate">{game.title}</h3>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => handleEdit(game)}
-                      className="text-blue-500 hover:text-blue-700"
-                      title="Edit game"
-                    >
-                      <FiEdit2 className="h-5 w-5" />
-                    </button>
-                    <button
-                      onClick={() => handleDeleteButtonClick(game)}
-                      className="text-red-500 hover:text-red-700"
-                      title="Delete game"
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="h-5 w-5"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                        />
-                      </svg>
-                    </button>
-                  </div>
+                <h3 className="font-bold text-lg truncate">{game.name}</h3>
+                <div className="mt-3 flex items-center justify-between">
+                  <SelectionToggle
+                    selected={selectedIds.includes(game._id) || game.selected}
+                    onChange={(next) => toggleSelect(game._id, next)}
+                    saving={savingId === game._id}
+                  />
                 </div>
-
-                <div className="flex items-center text-sm text-gray-600 mb-2">
-                  <span className="bg-gray-100 px-2 py-1 rounded mr-2">
-                    {game.category}
-                  </span>
-                  {game.subcategory && (
-                    <span className="bg-gray-100 px-2 py-1 rounded">
-                      {
-                        categoriesData.find((cat) => cat.value === game.subcategory)?.title || game.subcategory
-                      }
-                    </span>
-                  )}
-                </div>
-
-                <div className="flex gap-2 mt-4">
-                  <a
-                    href={game.link}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex-1 text-center bg-indigo-600 hover:bg-indigo-700 text-white py-2 px-4 rounded transition-colors"
-                  >
-                    Play Now
-                  </a>
+                <div className="mt-3">
+                  <FlagToggles
+                    game={game}
+                    disabled={!(selectedIds.includes(game._id) || game.selected)}
+                    onSave={(patch) => saveFlags(game._id, patch)}
+                    saving={savingFlagsId === game._id}
+                  />
                 </div>
               </div>
             </div>
@@ -418,12 +473,30 @@ const GamesList = () => {
         </div>
       )}
 
-      {/* Delete Modal */}
-      <DeleteModal
-        isOpen={isDeleteModalOpen}
-        closeModal={() => setIsDeleteModalOpen(false)}
-        handleDelete={handleDelete}
-      />
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex justify-center mt-8 gap-2">
+          <button
+            onClick={() => setPage((p) => Math.max(p - 1, 1))}
+            disabled={page === 1}
+            className="px-3 py-1 rounded bg-gray-200 disabled:opacity-50"
+          >
+            Prev
+          </button>
+          <span className="px-4 py-1">
+            Page {page} of {totalPages}
+          </span>
+          <button
+            onClick={() => setPage((p) => Math.min(p + 1, totalPages))}
+            disabled={page === totalPages}
+            className="px-3 py-1 rounded bg-gray-200 disabled:opacity-50"
+          >
+            Next
+          </button>
+        </div>
+      )}
+
+      {/* Delete Modal removed */}
 
       {/* Edit Modal */}
       {isEditModalOpen && (
@@ -524,7 +597,7 @@ const GamesList = () => {
                     <option value="">Select a subcategory</option>
                     {getFilteredSubcategories(editFormData.category).map(
                       (sub) => (
-                        <option key={sub.value} value={sub?.title}>
+                        <option key={sub.value} value={sub.value}>
                           {sub.label}
                         </option>
                       )
@@ -575,9 +648,7 @@ const GamesList = () => {
               <div>
                 <button
                   type="submit"
-                  disabled={
-                    !editFormData.title || !editFormData.category
-                  }
+                  disabled={!editFormData.title || !editFormData.category}
                   className="w-full bg-blue-600 text-white py-2 rounded-md font-medium hover:bg-blue-700 transition shadow-sm disabled:bg-slate-400"
                 >
                   Update Game

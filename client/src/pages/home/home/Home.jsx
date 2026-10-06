@@ -5,7 +5,7 @@ import BannerSlider from "../../../components/home/bannerSlider/BannerSlider";
 import SecondaryBanner from "../../../components/home/secondaryBanner/SecondaryBanner";
 import GameCard from "../../../components/shared/gameCard/GameCard";
 import HomeMobileButton from "@/components/home/homeMobilButton/HomeMobileButton";
-import { useGetGamesQuery } from "@/redux/features/allApis/gameApi/gameApi";
+// import { useGetGamesQuery } from "@/redux/features/allApis/gameApi/gameApi";
 import hotImage from "@/assets/homepageHot.svg";
 import jackpotImage from "@/assets/homeJackpot.svg";
 import cricketImage from "@/assets/cricket.svg";
@@ -21,18 +21,60 @@ import AnimationBanner from "../AnimationBanner/AnimationBanner";
 
 const Home = () => {
   const { addToast } = useToasts();
-  const { data: games } = useGetGamesQuery();
-  const [activeFilter, setActiveFilter] = useState("hot");
+  // const { data: games } = useGetGamesQuery();
+  const [games, setGames] = useState([]);
+  const [activeFilter, setActiveFilter] = useState("all");
+  // Fetch games from backend based on activeFilter
+  useEffect(() => {
+    const fetchGames = async () => {
+      try {
+        setLoading(true);
+        let url = "";
+        if (
+          activeFilter === "all" ||
+          activeFilter === "jackpot" ||
+          activeFilter === "hot" ||
+          activeFilter === "হট গেমস"
+        ) {
+          url = `${import.meta.env.VITE_BASE_API_URL}/games/merged`;
+        } else {
+          url = `${
+            import.meta.env.VITE_BASE_API_URL
+          }/games/by-category/${activeFilter}`;
+        }
+        const res = await fetch(url);
+        const data = await res.json();
+        if (data.success && Array.isArray(data.data)) {
+          setGames(data.data);
+        } else {
+          setGames([]);
+        }
+      } catch (err) {
+        setGames([]);
+        console.error("Failed to fetch games:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchGames();
+  }, [activeFilter]);
+  // (moved above)
   const [publishImage, setPublishImage] = useState("");
   const [downloadImage, setDownloadImage] = useState("");
   const [downloadApk, setDownloadApk] = useState("");
   const [secondaryBannerImage, setSecondaryBannerImage] = useState("");
   const [referImage, setReferImage] = useState({});
   const [exclusiveImage, setExclusiveImage] = useState("");
+  const [downloadImageForDesktop, setDownloadImageForDesktop] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Load More states
+  const [visibleGamesCount, setVisibleGamesCount] = useState(20);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+
   const baseURL = import.meta.env.VITE_BASE_API_URL || "http://localhost:5000";
 
-  // Fetch publish, download images, and APK URL
+  // Fetch publish, download images, APK URL, and downloadImageForDesktop
   useEffect(() => {
     const fetchImages = async () => {
       setLoading(true);
@@ -53,18 +95,27 @@ const Home = () => {
         setSecondaryBannerImage(data.desktop || "");
         setReferImage(data.referImage || {});
         setExclusiveImage(data.exclusiveImage || "");
+        setDownloadImageForDesktop(data.downloadImageForDesktop || "");
       } catch (err) {
         console.error("Fetch error:", err);
         setPublishImage("");
         setDownloadImage("");
         setDownloadApk("");
         setSecondaryBannerImage("");
+        setReferImage({});
+        setExclusiveImage("");
+        setDownloadImageForDesktop("");
       } finally {
         setLoading(false);
       }
     };
     fetchImages();
   }, [baseURL]);
+
+  // Reset visible games count when filter changes
+  useEffect(() => {
+    setVisibleGamesCount(20);
+  }, [activeFilter]);
 
   // Function to handle APK download
   const handleDownload = () => {
@@ -83,6 +134,16 @@ const Home = () => {
     }
   };
 
+  // Load More function
+  const loadMoreGames = () => {
+    setIsLoadingMore(true);
+    // Simulate loading delay
+    setTimeout(() => {
+      setVisibleGamesCount((prevCount) => prevCount + 20);
+      setIsLoadingMore(false);
+    }, 500);
+  };
+
   const buttons = [
     { image: jackpotImage, title: "Jackpot", value: "all" },
     { image: hotImage, title: "হট গেমস", value: "hot" },
@@ -95,22 +156,34 @@ const Home = () => {
     { image: crashImage, title: "ক্র্যাশ", value: "crash" },
   ];
 
-  // Filter games based on activeFilter
-  const filteredGames = games?.filter((game) => {
-    if (activeFilter === "all") return true; // Show all games when "all" is selected
-    if (activeFilter === "hot") return game.badge === "new";
-    return game.category === activeFilter;
-  });
+  // Filter games: show only lobby-selected games on Home (incl. Jackpot)
+  let filteredGames = (games || []).filter((game) => game?.lobby === true);
+  if (activeFilter === "hot" || activeFilter === "হট গেমস") {
+    filteredGames = filteredGames.filter((game) => game.hot === true);
+  }
+
+  // Check if there are more games to load
+  const hasMoreGames =
+    filteredGames && visibleGamesCount < filteredGames.length;
+
+  // Get visible games (limited by visibleGamesCount)
+  const visibleGames = filteredGames.slice(0, visibleGamesCount);
 
   useEffect(() => {
     console.log("Active filter changed:", activeFilter);
-  }, [activeFilter]);
+    console.log("Visible games count:", visibleGamesCount);
+    console.log("Total filtered games:", filteredGames.length);
+  }, [activeFilter, visibleGamesCount, filteredGames.length]); // Dependency যোগ করা
 
   return (
     <div>
       <BannerSlider />
       <div className="container mx-auto mt-6 md:mt-0 px-4 sm:px-10 lg:px-24">
-        <SecondaryBanner image={secondaryBannerImage} baseURL={baseURL} />
+        <SecondaryBanner
+          image={secondaryBannerImage}
+          baseURL={baseURL}
+          imageMobil={secondaryBannerImage}
+        />
 
         {/* Mobile Filter Buttons - Only shown on mobile */}
         {window.innerWidth < 768 && (
@@ -127,21 +200,84 @@ const Home = () => {
           </div>
         )}
 
-        <AnimationBanner />
+        {activeFilter == "all" && <AnimationBanner />}
 
         {/* Games Grid */}
-        <div className="mt-3 md:mt-0 pb-10 grid grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 md:gap-4 lg:gap-6">
-          {filteredGames?.map((game) => (
-            <GameCard
-              key={game._id}
-              gameCardImg={`${import.meta.env.VITE_BASE_API_URL}${game?.image}`}
-              badge={game?.badge}
-              gameHeading={game?.title}
-              gameText={game?.category}
-              gameLink={game?.link ? game?.link : null}
-              demoId={game?._id}
-            />
-          ))}
+        <div className="mt-3 md:mt-0 pb-10">
+          {/* Show total games count */}
+          {
+            //   filteredGames.length > 0 && (
+            //   <div className="mb-4 text-sm text-gray-600">
+            //     মোট {filteredGames.length}টি গেমের মধ্যে {Math.min(visibleGamesCount, filteredGames.length)}টি দেখানো হচ্ছে
+            //   </div>
+            // )
+          }
+
+          <div className="grid grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 md:gap-4 lg:gap-6">
+            {visibleGames.map((game) => (
+              <GameCard
+                key={game._id}
+                gameCardImg={(function() {
+                  const BASE = "https://apigames.oracleapi.net/api/";
+                  const projectDocs = game.projectImageDocs || [];
+                  const babuDoc = Array.isArray(projectDocs)
+                    ? projectDocs.find((d) => d?.projectName?.title === "Babu88")
+                    : null;
+                  const raw = babuDoc?.image  || "";
+                  if (!raw) return "";
+                  const isAbs = /^https?:\/\//i.test(raw);
+                  return isAbs ? raw : `${BASE}${raw}`;
+                })()}
+                badge={game?.badge}
+                gameHeading={game?.title}
+                gameText={game?.category}
+                gameLink={game?.link ? game?.link : null}
+                demoId={game?._id}
+                hot={game?.hot}
+                isNew={game?.new}
+              />
+            ))}
+          </div>
+
+          {/* Load More Button */}
+          {hasMoreGames && (
+            <div className="flex justify-center mt-6">
+              <button
+                onClick={loadMoreGames}
+                disabled={isLoadingMore}
+                className={`px-6 py-2 rounded-full font-semibold transition-all duration-300 ${
+                  isLoadingMore
+                    ? "bg-gray-400 cursor-not-allowed text-gray-600"
+                    : "bg-blue-500 hover:bg-blue-600 text-white"
+                }`}
+              >
+                {isLoadingMore ? (
+                  <>
+                    <div className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                    লোড হচ্ছে...
+                  </>
+                ) : (
+                  `আরও গেম লোড করুন`
+                )}
+              </button>
+            </div>
+          )}
+
+          {/* No more games message */}
+          {
+            // filteredGames.length > 0 && !hasMoreGames && visibleGamesCount >= filteredGames.length && (
+            //   <div className="text-center mt-6 text-gray-500">
+            //     সব গেম লোড করা হয়েছে! 🎉
+            //   </div>
+            // )
+          }
+
+          {/* No games found message */}
+          {filteredGames.length === 0 && !loading && (
+            <div className="text-center mt-6 text-gray-500">
+              কোনো গেম পাওয়া যায়নি 😔
+            </div>
+          )}
         </div>
 
         {/* Video Slider */}
@@ -232,11 +368,12 @@ const Home = () => {
           <div className="w-full h-40 flex items-center justify-center bg-gray-200 rounded-2xl">
             <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
           </div>
-        ) : downloadImage ? (
+        ) : downloadImage || downloadImageForDesktop ? (
           <SecondaryBanner
             zipFile={downloadApk}
-            image={`${baseURL}${downloadImage}`}
-            imageMobil={`${baseURL}${downloadImage}`}
+            image={downloadImageForDesktop}
+            imageMobil={downloadImage}
+            baseURL={baseURL}
             onClick={handleDownload}
           />
         ) : null}

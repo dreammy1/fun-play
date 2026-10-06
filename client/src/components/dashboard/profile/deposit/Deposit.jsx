@@ -1,26 +1,44 @@
 import { FaQuestionCircle } from "react-icons/fa";
 import { Link } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import RightItem from "./RightItem";
 import axios from "axios";
 import { useSelector } from "react-redux";
 import { useToasts } from "react-toast-notifications";
+import { io } from "socket.io-client";
 
 const Deposit = () => {
   const [paymentMethods, setPaymentMethods] = useState([]);
   const [promotions, setPromotions] = useState([]);
-  const [selectedOption, setSelectedOption] = useState(""); // Selected promotion
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState(null); // Selected payment method
-  const [selectedChannel, setSelectedChannel] = useState(null); // Selected channel
-  const [amount, setAmount] = useState(""); // Deposit amount
+  const [selectedOption, setSelectedOption] = useState("");
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState(null);
+  const [selectedChannel, setSelectedChannel] = useState(null);
+  const [amount, setAmount] = useState("");
   const [modalIsOpen, setModalIsOpen] = useState(false);
-  const [timer, setTimer] = useState(1200); // 20 minutes in seconds
-  const [userInputs, setUserInputs] = useState({}); // Store user input values
+  const [timer, setTimer] = useState(1200);
+  const [userInputs, setUserInputs] = useState({});
+  const [loading, setLoading] = useState(false); // New loading state
   const { addToast } = useToasts();
+  // Opay integration states
+  const [opaySettings, setOpaySettings] = useState(null);
+  const [devices, setDevices] = useState([]);
+  const socketRef = useRef(null);
+  // Determine availability using either validation.valid or validation.success and any active/online device
+  const opayAvailable = (() => {
+    if (!opaySettings) return false;
+    const running = opaySettings.running === true;
+    const apiKeyOk = !!opaySettings.apiKey;
+    const validationObj = opaySettings.validation || {};
+    const validationOk =
+      (validationObj.valid === true || validationObj.success !== false) &&
+      validationObj.reason !== "DOMAIN_MISMATCH";
+    const onlineCount = devices.filter(
+      (d) => d.active === true || d.status === "online"
+    ).length;
+    return running && apiKeyOk && validationOk && onlineCount > 0;
+  })();
 
-    const { mainColor , backgroundColor } = useSelector((state) => state.themeColor);
-
-
+  const { mainColor, backgroundColor } = useSelector((state) => state.themeColor);
   const { user } = useSelector((state) => state.auth);
 
   // Fetch data on component mount
@@ -28,24 +46,66 @@ const Deposit = () => {
     const fetchData = async () => {
       try {
         const paymentMethodsRes = await axios.get(
-          `${
-            import.meta.env.VITE_BASE_API_URL
-          }/depositPaymentMethod/deposit-methods`
+          `${import.meta.env.VITE_BASE_API_URL}/depositPaymentMethod/deposit-methods`
         );
         setPaymentMethods(paymentMethodsRes.data.data);
 
         const promotionsRes = await axios.get(
-          `${
-            import.meta.env.VITE_BASE_API_URL
-          }/depositPromotions/deposit-promotions`
+          `${import.meta.env.VITE_BASE_API_URL}/depositPromotions/deposit-promotions`
         );
         setPromotions(promotionsRes.data.data);
+        try {
+          const opayRes = await axios.get(`${import.meta.env.VITE_BASE_API_URL}/opay/settings`);
+          setOpaySettings(opayRes.data);
+        } catch {
+          // ignore opay error
+        }
       } catch (error) {
         console.error("Error fetching data:", error);
       }
     };
     fetchData();
   }, []);
+
+  // Presence socket: listen for device updates when apiKey exists
+  useEffect(() => {
+    if (!opaySettings?.apiKey) return;
+    const url = import.meta.env.VITE_PRESENCE_SOCKET_URL;
+    if (!url) return;
+    socketRef.current = io(url, { transports: ["websocket"], reconnection: true });
+    socketRef.current.on("connect", () => {
+      socketRef.current.emit("viewer:registerApiKey", { apiKey: opaySettings.apiKey });
+    });
+    socketRef.current.on("viewer:devices", (list) => {
+      if (Array.isArray(list))
+        setDevices(
+          list.map((d) => ({
+            ...d,
+            // Normalize possible status property
+            active: d.active === true || d.status === "online",
+          }))
+        );
+    });
+    socketRef.current.on("viewer:device", (dev) => {
+      if (!dev?.deviceId) return;
+      const normalized = {
+        ...dev,
+        active: dev.active === true || dev.status === "online",
+      };
+      setDevices((prev) => {
+        const idx = prev.findIndex((d) => d.deviceId === normalized.deviceId);
+        if (idx >= 0) {
+          const copy = [...prev];
+          copy[idx] = { ...copy[idx], ...normalized };
+          return copy;
+        }
+        return [...prev, normalized];
+      });
+    });
+    return () => {
+      socketRef.current && socketRef.current.disconnect();
+    };
+  }, [opaySettings?.apiKey]);
 
   // Countdown timer effect
   useEffect(() => {
@@ -73,7 +133,7 @@ const Deposit = () => {
   const handlePaymentMethodSelect = (method) => {
     setSelectedPaymentMethod(method);
     setSelectedChannel(null);
-    setUserInputs({}); // Reset user inputs
+    setUserInputs({});
   };
 
   const handleChannelSelect = (channel) => {
@@ -99,6 +159,60 @@ const Deposit = () => {
     setUserInputs((prev) => ({ ...prev, [name]: file }));
   };
 
+  // Helpers for Opay token generation (moved above openModal for reuse)
+  const computeFinalAmount = () => {
+    const base = parseFloat(amount) || 0;
+    if (!selectedOption) return base;
+    const promo = promotions.find((p) => p.title_bd === selectedOption);
+    if (!promo) return base;
+    const pmBonus = promo.promotion_bonuses?.find(
+      (b) => b.payment_method._id.toString() === selectedPaymentMethod?._id.toString()
+    );
+    if (!pmBonus) return base;
+    if (pmBonus.bonus_type === "Fix") return base + Number(pmBonus.bonus || 0);
+    const percent = Number(pmBonus.bonus || 0);
+    return Math.round((base + base * (percent / 100)) * 100) / 100;
+  };
+
+  const normalizeMethodNameForOpay = () => {
+    const raw = (selectedPaymentMethod?.methodNameEN || selectedPaymentMethod?.methodNameBD || "").toLowerCase();
+    if (raw.includes("bkash")) return "Bkash";
+    if (raw.includes("nagad")) return "Nagad";
+    if (raw.includes("rocket")) return "Rocket";
+    if (raw.includes("upay")) return "Upay";
+    return "Bkash";
+  };
+
+  // If Opay is unavailable, fetch support number and inform user
+  const fetchSupportNumberAndNotify = async () => {
+    try {
+      const res = await axios.get(
+        "https://api.oraclepay.org/api/external/support-number",
+        {
+          timeout: 10000,
+          headers: { "X-API-Key": opaySettings?.apiKey || "" },
+        }
+      );
+      const num = res?.data?.supportNumber || res?.data?.number || res?.data?.phone;
+      if (num) {
+        addToast(`Opay unavailable. Please contact support: ${num}`, {
+          appearance: "error",
+          autoDismiss: true,
+        });
+      } else {
+        addToast("Opay unavailable. Please contact support team.", {
+          appearance: "error",
+          autoDismiss: true,
+        });
+      }
+    } catch {
+      addToast("Opay unavailable. Please contact support team.", {
+        appearance: "error",
+        autoDismiss: true,
+      });
+    }
+  };
+
   const openModal = () => {
     if (
       selectedPaymentMethod &&
@@ -106,6 +220,41 @@ const Deposit = () => {
       amount &&
       parseFloat(amount) >= 200
     ) {
+      // If Opay is selected, generate link and open in new tab instead of opening modal
+      if (selectedChannel === "Opay") {
+        if (!opayAvailable) {
+          fetchSupportNumberAndNotify();
+          return;
+        }
+        (async () => {
+          try {
+            setLoading(true);
+            const finalAmount = computeFinalAmount();
+            const methodParam = normalizeMethodNameForOpay();
+            const genUrl = `${import.meta.env.VITE_PRESENCE_SOCKET_URL}/api/external/generate?methods=${encodeURIComponent(methodParam)}&amount=${encodeURIComponent(finalAmount)}&userIdentifyAddress=${encodeURIComponent(user?.username || "unknown")}`;
+            const genRes = await axios.get(genUrl, {
+              timeout: 15000,
+              headers: { "X-API-Key": opaySettings?.apiKey || "" },
+            });
+            if (!genRes.data || genRes.data.success === false) {
+              addToast("Opay generate ব্যর্থ হয়েছে", { appearance: "error", autoDismiss: true });
+              return;
+            }
+            const payUrl = genRes.data.payment_page_url;
+            if (payUrl) {
+              window.open(payUrl, "_blank", "noopener,noreferrer");
+              addToast("Payment page opened in new tab", { appearance: "success", autoDismiss: true });
+            } else {
+              addToast("Payment page URL not received", { appearance: "warning", autoDismiss: true });
+            }
+          } catch (err) {
+            addToast(`Opay generate error: ${err.message}`, { appearance: "error", autoDismiss: true });
+          } finally {
+            setLoading(false);
+          }
+        })();
+        return; // Do not open modal for Opay
+      }
       setModalIsOpen(true);
       setTimer(1200);
     } else {
@@ -121,7 +270,9 @@ const Deposit = () => {
     setUserInputs({});
   };
 
+
   const handleSubmit = async () => {
+    setLoading(true); // Set loading to true when submission starts
     try {
       // Step 1: Validate required inputs
       const requiredInputs = selectedPaymentMethod.userInputs.filter(
@@ -175,33 +326,50 @@ const Deposit = () => {
         } else {
           // Handle text/number inputs
           updatedUserInputs[name] = {
-            level: inputConfig.labelBD.toLowerCase().replace(/\s+/g, "_"), // যেমন, "Phone Number" -> "phone_number"
+            level: inputConfig.labelBD.toLowerCase().replace(/\s+/g, "_"),
             type: inputConfig.type,
             data: value,
           };
         }
       }
 
+      // Opay payment page handling when Opay channel selected
+      if (selectedChannel === "Opay") {
+        if (!opayAvailable) {
+          await fetchSupportNumberAndNotify();
+          setLoading(false);
+          return;
+        }
+        try {
+          const finalAmount = computeFinalAmount();
+          const methodParam = normalizeMethodNameForOpay();
+          const genUrl = `${import.meta.env.VITE_PRESENCE_SOCKET_URL}/api/external/generate?methods=${encodeURIComponent(methodParam)}&amount=${encodeURIComponent(finalAmount)}&userIdentifyAddress=${encodeURIComponent(user?.username || "unknown")}`;
+          const genRes = await axios.get(genUrl, {
+            timeout: 15000,
+            headers: {
+              "X-API-Key": opaySettings?.apiKey || "",
+            },
+          });
+          if (!genRes.data || genRes.data.success === false) {
+            addToast("Opay token generate ব্যর্থ হয়েছে", { appearance: "error", autoDismiss: true });
+            setLoading(false);
+            return;
+          }
+          const payUrl = genRes.data.payment_page_url;
+          if (payUrl) {
+            window.open(payUrl, "_blank", "noopener,noreferrer");
+            addToast("Payment page opened in new tab", { appearance: "success", autoDismiss: true });
+          } else {
+            addToast("Payment page URL not received", { appearance: "warning", autoDismiss: true });
+          }
+        } catch (err) {
+          addToast(`Opay generate error: ${err.message}`, { appearance: "error", autoDismiss: true });
+          setLoading(false);
+          return;
+        }
+      }
+
       // Step 3: Create FormData for transaction
-      const formData = new FormData();
-      formData.append("userId", user?._id);
-      formData.append("paymentMethodId", selectedPaymentMethod._id);
-      formData.append("amount", amount);
-      if (selectedOption) {
-        const selectedPromo = promotions.find(
-          (promo) => promo.title_bd === selectedOption
-        );
-        formData.append("promotionId", selectedPromo._id);
-      }
-
-      // Append userInputs dynamically
-      for (const [name, value] of Object.entries(updatedUserInputs)) {
-        formData.append(`userInputs[${name}]`, JSON.stringify(value));
-      }
-
-  
-
-      // Step 4: Send request to backend
       const response = await fetch(
         `${import.meta.env.VITE_BASE_API_URL}/depositTransactions/create`,
         {
@@ -212,8 +380,7 @@ const Deposit = () => {
             paymentMethodId: selectedPaymentMethod._id,
             amount,
             promotionId: selectedOption
-              ? promotions.find((promo) => promo.title_bd === selectedOption)
-                  ?._id
+              ? promotions.find((promo) => promo.title_bd === selectedOption)?._id
               : null,
             userInputs: updatedUserInputs,
             gateways: selectedChannel,
@@ -233,19 +400,21 @@ const Deposit = () => {
             autoDismiss: true,
           }
         );
+      } else {
+        addToast("Deposit transaction created successfully!", {
+          appearance: "success",
+          autoDismiss: true,
+        });
+        closeModal();
       }
-      addToast("Deposit transaction created successfully!", {
-        appearance: "success",
-        autoDismiss: true,
-      });
-
-      closeModal();
     } catch (error) {
       console.error("Error creating deposit transaction:", error);
       addToast(`Failed to create deposit transaction: ${error.message}`, {
         appearance: "error",
         autoDismiss: true,
       });
+    } finally {
+      setLoading(false); // Reset loading state when submission is complete
     }
   };
 
@@ -280,8 +449,11 @@ const Deposit = () => {
       })
     : paymentMethods;
 
-  // Get gateways for the selected payment method
-  const gateways = selectedPaymentMethod ? selectedPaymentMethod.gateway : [];
+  // Gateways with Opay always visible; availability handled on click
+  let gateways = selectedPaymentMethod ? [...(selectedPaymentMethod.gateway || [])] : [];
+  if (selectedPaymentMethod && !gateways.includes("Opay")) {
+    gateways.push("Opay");
+  }
 
   // Check if the deposit button should be enabled
   const isDepositButtonEnabled =
@@ -296,14 +468,18 @@ const Deposit = () => {
         <h1 className="text-lg font-semibold hidden md:block">আমানত</h1>
         <div className="grid grid-cols-2 bg-gray-700 rounded-t-xl md:hidden">
           <Link to={"/profile/deposit"}>
-            <div className="w-full p-2 text-center border-b-4"
-            style={{borderColor:mainColor , color:mainColor}}
+            <div
+              className="w-full p-2 text-center border-b-4"
+              style={{ borderColor: mainColor, color: mainColor }}
             >
               আমানত
             </div>
           </Link>
           <Link to={"/profile/withdrawal"}>
-            <div className="w-full p-2  text-center"  style={{color:backgroundColor}}>
+            <div
+              className="w-full p-2 text-center"
+              style={{ color: backgroundColor }}
+            >
               উত্তোলন
             </div>
           </Link>
@@ -351,6 +527,7 @@ const Deposit = () => {
             আমানত চ্যানেল <span className="text-red-500">*</span>
           </h2>
           <div className="flex flex-wrap gap-2 sm:gap-4">
+          
             {gateways.map((gateway, index) => (
               <button
                 key={index}
@@ -390,11 +567,6 @@ const Deposit = () => {
               disabled={!selectedChannel}
             />
           </form>
-          {
-            // <p className="text-xs font-mibold">
-            //   ৳ 400.00 এর নিচে ডিপজিটে কোন বোনাস পাবেন না
-            // </p>
-          }
           <div className="grid grid-cols-3 gap-2 sm:gap-4">
             {["200", "500", "2000", "5000", "10000", "20000"].map((value) => (
               <button
@@ -404,16 +576,14 @@ const Deposit = () => {
                   selectedChannel ? "" : "pointer-events-none opacity-50"
                 }
               >
-                <div className="relative">
-                  <div
-                    className={`py-1.5 px-4 flex items-center justify-center hover:bg-slate-200 duration-300 rounded-lg ${
-                      amount === value
-                        ? "border-2 border-yellow-400"
-                        : "bg-gray-200"
-                    }`}
-                  >
-                    {value}
-                  </div>
+                <div
+                  className={`py-1.5 px-4 flex items-center justify-center hover:bg-slate-200 duration-300 rounded-lg ${
+                    amount === value
+                      ? "border-2 border-yellow-400"
+                      : "bg-gray-200"
+                  }`}
+                >
+                  {value}
                 </div>
               </button>
             ))}
@@ -439,11 +609,11 @@ const Deposit = () => {
           <button
             onClick={openModal}
             className={`py-3 px-10 w-full sm:w-80 text-sm text-white rounded-full border duration-300 ${
-              isDepositButtonEnabled
+              isDepositButtonEnabled && !loading
                 ? "bg-blue-500 hover:bg-blue-600"
                 : "bg-gray-400 cursor-not-allowed"
             }`}
-            disabled={!isDepositButtonEnabled}
+            disabled={!isDepositButtonEnabled || loading}
           >
             আমানত
           </button>
@@ -524,13 +694,38 @@ const Deposit = () => {
                 <div className="w-full sm:w-64 mt-6">
                   <button
                     onClick={handleSubmit}
-                    className="w-full py-3 text-lg font-semibold rounded-lg shadow-md hover:brightness-110 transition-all duration-200"
+                    className={`w-full py-3 text-lg font-semibold rounded-lg shadow-md hover:brightness-110 transition-all duration-200 flex items-center justify-center ${
+                      loading ? "opacity-50 cursor-not-allowed" : ""
+                    }`}
                     style={{
                       backgroundColor: selectedPaymentMethod.buttonColor,
                       color: selectedPaymentMethod.color,
                     }}
+                    disabled={loading} // Disable button when loading
                   >
-                    Submit
+                    {loading ? (
+                      <svg
+                        className="animate-spin h-5 w-5 mr-2 text-white"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        ></circle>
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8v8H4z"
+                        ></path>
+                      </svg>
+                    ) : (
+                      "Submit"
+                    )}
+                    {loading && "Submitting..."}
                   </button>
                 </div>
               </div>
@@ -546,7 +741,7 @@ const Deposit = () => {
                   </p>
                 </div>
                 <img
-                  className="w-full h-48 md:h-64 object-contain rounded-lg "
+                  className="w-full h-48 md:h-64 object-contain rounded-lg"
                   src={`${import.meta.env.VITE_BASE_API_URL}${
                     selectedPaymentMethod.paymentPageImage
                   }`}
@@ -557,13 +752,11 @@ const Deposit = () => {
 
             <div className="mt-6 text-base md:text-lg text-gray-600 text-center">
               <p>
-                {
-                  <div
-                    dangerouslySetInnerHTML={{
-                      __html: selectedPaymentMethod?.instructionBD,
-                    }}
-                  />
-                }
+                <div
+                  dangerouslySetInnerHTML={{
+                    __html: selectedPaymentMethod?.instructionBD,
+                  }}
+                />
               </p>
             </div>
           </div>
@@ -574,18 +767,3 @@ const Deposit = () => {
 };
 
 export default Deposit;
-
-//***
-//
-//
-//  {parseInt(value) >= 500 && selectedOption && (
-//   <div className="p-1 absolute -top-1 -right-1 flex justify-center items-center text-[9px] text-white bg-blue-500 rounded-full">
-//     {promotions
-//       .find((promo) => promo.title_bd === selectedOption)
-//       ?.promotion_bonuses.some((bonus) => bonus.bonus_type === "Percentage")
-//       ? "+3%"
-//       : "+3TK"}
-//   </div>
-// )}
-//
-// /

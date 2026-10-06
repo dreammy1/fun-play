@@ -1,13 +1,26 @@
-import { useGetCategoriesQuery, useDeleteCategoryMutation, useUpdateCategoryMutation } from "@/redux/features/allApis/categoriesApi/categoriesApi";
-import { useState } from "react";
-import { FiEdit2, FiTrash2, FiUpload, FiChevronDown, FiX } from "react-icons/fi";
+import {
+  useGetCategoriesQuery,
+  useDeleteCategoryMutation,
+  useUpdateCategoryMutation,
+} from "@/redux/features/allApis/categoriesApi/categoriesApi";
+import { useState, useEffect } from "react";
+import {
+  FiEdit2,
+  FiTrash2,
+  FiUpload,
+  FiChevronDown,
+  FiX,
+} from "react-icons/fi";
 import { useToasts } from "react-toast-notifications";
 import { uploadImage } from "@/hooks/files";
 
 const SubcategoryList = () => {
-  const { data: subcategories, isLoading: isFetching } = useGetCategoriesQuery();
-  const [deleteCategory, { isLoading: isDeleting }] = useDeleteCategoryMutation();
-  const [updateCategory, { isLoading: isUpdating }] = useUpdateCategoryMutation();
+  const { data: subcategories, isLoading: isFetching } =
+    useGetCategoriesQuery();
+  const [deleteCategory, { isLoading: isDeleting }] =
+    useDeleteCategoryMutation();
+  const [updateCategory, { isLoading: isUpdating }] =
+    useUpdateCategoryMutation();
   const { addToast } = useToasts();
 
   // State for edit modal
@@ -19,11 +32,32 @@ const SubcategoryList = () => {
     iconImage: null,
     iconImagePreview: null,
     category: "",
-    value: "",
-    title: "",
+    provider: "",
     oldImage: null,
     oldIconImage: null,
   });
+  const [providers, setProviders] = useState([]);
+  // Fetch providers for edit modal
+  useEffect(() => {
+    const fetchProviders = async () => {
+      try {
+        const res = await fetch(
+          "https://apigames.oracleapi.net/api/providers",
+          {
+            headers: {
+              "x-api-key":
+                "b4fb7adb955b1078d8d38b54f5ad7be8ded17cfba85c37e4faa729ddd679d379",
+            },
+          }
+        );
+        const data = await res.json();
+        if (data.success) setProviders(data.data);
+      } catch {
+        /* ignore */
+      }
+    };
+    fetchProviders();
+  }, []);
 
   // State for delete modal
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -49,8 +83,10 @@ const SubcategoryList = () => {
         ? `${import.meta.env.VITE_BASE_API_URL}${subcategory.iconImage}`
         : null,
       category: subcategory.category,
-      value: subcategory.value,
-      title: subcategory.title,
+      provider:
+        typeof subcategory.provider === "object"
+          ? subcategory.provider._id
+          : subcategory.provider,
       oldImage: subcategory.image,
       oldIconImage: subcategory.iconImage || null,
     });
@@ -92,7 +128,8 @@ const SubcategoryList = () => {
         setEditFormData({
           ...editFormData,
           [name]: file,
-          [name === "image" ? "imagePreview" : "iconImagePreview"]: URL.createObjectURL(file),
+          [name === "image" ? "imagePreview" : "iconImagePreview"]:
+            URL.createObjectURL(file),
         });
       }
     } else {
@@ -106,66 +143,85 @@ const SubcategoryList = () => {
     // console.log("editFormData:", editFormData);
 
     if (!editFormData.id) {
-      addToast("Invalid category ID", { appearance: "error", autoDismiss: true });
+      addToast("Invalid category ID", {
+        appearance: "error",
+        autoDismiss: true,
+      });
       return;
     }
 
     const updateData = {
       category: editFormData.category,
-      value: editFormData.value,
-      title: editFormData.title,
+      provider: editFormData.provider,
     };
 
     try {
       // Upload new images and delete old ones if provided
       if (editFormData.image && editFormData.oldImage) {
-     //   console.log("Deleting old image:", editFormData.oldImage);
+        //   console.log("Deleting old image:", editFormData.oldImage);
         try {
-          const response = await fetch(`${import.meta.env.VITE_BASE_API_URL}/delete`, {
-            method: "DELETE",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ filePath: editFormData.oldImage }),
-          });
+          const response = await fetch(
+            `${import.meta.env.VITE_BASE_API_URL}/delete`,
+            {
+              method: "DELETE",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ filePath: editFormData.oldImage }),
+            }
+          );
           if (!response.ok) {
             const errorData = await response.json();
             throw new Error(errorData.message || "Failed to delete old image");
           }
         } catch (err) {
           console.error("Failed to delete old image:", err);
-          addToast(`Failed to delete old image: ${err.message}`, { appearance: "warning", autoDismiss: true });
+          addToast(`Failed to delete old image: ${err.message}`, {
+            appearance: "warning",
+            autoDismiss: true,
+          });
         }
         const { filePath } = await uploadImage(editFormData.image);
         updateData.image = filePath;
       }
       if (editFormData.iconImage) {
-      //  console.log("Uploading new iconImage");
+        //  console.log("Uploading new iconImage");
         if (editFormData.oldIconImage) {
-       //   console.log("Deleting old iconImage:", editFormData.oldIconImage);
+          //   console.log("Deleting old iconImage:", editFormData.oldIconImage);
           try {
-            const response = await fetch(`${import.meta.env.VITE_BASE_API_URL}/delete`, {
-              method: "DELETE",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({ filePath: editFormData.oldIconImage }),
-            });
+            const response = await fetch(
+              `${import.meta.env.VITE_BASE_API_URL}/delete`,
+              {
+                method: "DELETE",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ filePath: editFormData.oldIconImage }),
+              }
+            );
             if (!response.ok) {
               const errorData = await response.json();
-              throw new Error(errorData.message || "Failed to delete old icon image");
+              throw new Error(
+                errorData.message || "Failed to delete old icon image"
+              );
             }
           } catch (err) {
             console.error("Failed to delete old iconImage:", err);
-            addToast(`Failed to delete old icon image: ${err.message}`, { appearance: "warning", autoDismiss: true });
+            addToast(`Failed to delete old icon image: ${err.message}`, {
+              appearance: "warning",
+              autoDismiss: true,
+            });
           }
         }
         const { filePath } = await uploadImage(editFormData.iconImage);
         updateData.iconImage = filePath;
       }
 
-     // console.log("Sending update request with:", { id: editFormData.id, ...updateData });
-      const result = await updateCategory({ id: editFormData.id, ...updateData }).unwrap();
+      // console.log("Sending update request with:", { id: editFormData.id, ...updateData });
+      const result = await updateCategory({
+        id: editFormData.id,
+        ...updateData,
+      }).unwrap();
       if (result.modifiedCount > 0) {
         addToast("Subcategory updated successfully", {
           appearance: "success",
@@ -192,10 +248,13 @@ const SubcategoryList = () => {
       }
     } catch (error) {
       console.error("Update error:", error);
-      addToast(error.data?.message || `Failed to update subcategory: ${error.message}`, {
-        appearance: "error",
-        autoDismiss: true,
-      });
+      addToast(
+        error.data?.message || `Failed to update subcategory: ${error.message}`,
+        {
+          appearance: "error",
+          autoDismiss: true,
+        }
+      );
     }
   };
 
@@ -244,7 +303,9 @@ const SubcategoryList = () => {
                 />
                 {sub?.iconImage && (
                   <img
-                    src={`${import.meta.env.VITE_BASE_API_URL}${sub?.iconImage}`}
+                    src={`${import.meta.env.VITE_BASE_API_URL}${
+                      sub?.iconImage
+                    }`}
                     alt={`${sub.title} icon`}
                     className="absolute bottom-2 left-2 h-12 w-12 rounded-full object-cover border-2 border-white shadow"
                   />
@@ -258,10 +319,12 @@ const SubcategoryList = () => {
                 </h3>
                 <p className="text-sm text-gray-600">
                   <span className="font-medium">Category:</span>{" "}
-                  {categories.find((cat) => cat.value === sub.category)?.label || sub.category}
+                  {categories.find((cat) => cat.value === sub.category)
+                    ?.label || sub.category}
                 </p>
                 <p className="text-sm text-gray-600">
-                  <span className="font-medium">Value:</span> {sub.value}
+                  <span className="font-medium">Provider:</span>{" "}
+                  {sub.provider?.name || sub.provider}
                 </p>
               </div>
             </div>
@@ -361,36 +424,28 @@ const SubcategoryList = () => {
                 </div>
               </div>
 
-              {/* Subcategory Value */}
+              {/* Provider Dropdown */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Subcategory Value
+                  Provider
                 </label>
-                <input
-                  type="text"
-                  name="value"
-                  value={editFormData.value}
-                  onChange={handleEditChange}
-                  className="w-full border border-gray-300 rounded-md px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  placeholder="e.g., sports_01"
-                  required
-                />
-              </div>
-
-              {/* Subcategory Title */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Subcategory Title
-                </label>
-                <input
-                  type="text"
-                  name="title"
-                  value={editFormData.title}
-                  onChange={handleEditChange}
-                  className="w-full border border-gray-300 rounded-md px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  placeholder="e.g., Football"
-                  required
-                />
+                <div className="relative">
+                  <select
+                    name="provider"
+                    value={editFormData.provider}
+                    onChange={handleEditChange}
+                    className="w-full appearance-none bg-white border border-gray-300 rounded-md px-4 py-2 pr-10 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    required
+                  >
+                    <option value="">Select a provider</option>
+                    {providers.map((prov) => (
+                      <option key={prov._id} value={prov._id}>
+                        {prov.name}
+                      </option>
+                    ))}
+                  </select>
+                  <FiChevronDown className="absolute top-1/2 right-3 transform -translate-y-1/2 text-gray-500 pointer-events-none" />
+                </div>
               </div>
 
               {/* Submit */}
@@ -400,8 +455,7 @@ const SubcategoryList = () => {
                   disabled={
                     isUpdating ||
                     !editFormData.category ||
-                    !editFormData.value ||
-                    !editFormData.title
+                    !editFormData.provider
                   }
                   className="w-full bg-blue-600 text-white py-2 rounded-md font-medium hover:bg-blue-700 transition shadow-sm disabled:bg-slate-400"
                 >
@@ -431,8 +485,10 @@ const SubcategoryList = () => {
             </h2>
             <p className="text-gray-600 text-center mb-6">
               Are you sure you want to delete the subcategory{" "}
-              <span className="font-semibold">"{categoryToDelete?.title}"</span>?
-              This action cannot be undone.
+              <span className="font-semibold">
+                &quot;{categoryToDelete?.title}&quot;
+              </span>
+              ? This action cannot be undone.
             </p>
             <div className="flex gap-4 justify-center">
               <button

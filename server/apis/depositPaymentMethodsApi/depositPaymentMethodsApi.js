@@ -3,11 +3,11 @@ const router = express.Router();
 const { ObjectId } = require("mongodb");
 
 const createDepositPaymentMethodsApi = (depositPaymentMethodCollection) => {
- // console.log("this is inside the api");
+ // // console.log("this is inside the api");
 
   // POST: Create a new deposit payment method
   router.post("/deposit-method", async (req, res) => {
-   // console.log("this is inside the api", req.body);
+   // // console.log("this is inside the api", req.body);
 
     try {
       const {

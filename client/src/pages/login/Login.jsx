@@ -34,7 +34,19 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    
     const { data: loginData } = await loginUser(formData);
+
+    // console.log("loginData ",loginData)
+
+    if(loginData === undefined){
+      addToast("Please check your username and password", {
+        appearance: "error",
+        autoDismiss: true,
+      });
+    }
+
+
     if (loginData.token) {
       const { data: userData } = await getUser(loginData.token);
 
@@ -53,8 +65,8 @@ const Login = () => {
         autoDismiss: true,
       });
       setFormData({ username: "", password: "" });
-      navigate("/");
-    //  console.log("navigated");
+      navigate("/profile/deposit");
+    //  // console.log("navigated");
     } else {
       addToast("Something went wrong", {
         appearance: "error",

@@ -3,7 +3,7 @@ const app = express();
 const cors = require("cors");
 const { MongoClient, ServerApiVersion } = require("mongodb");
 require("dotenv").config();
-const port = process.env.PORT || 5000;
+const port = process.env.PORT || 5001;
 const { upload, deleteFile } = require("./utils");
 const path = require("path");
 
@@ -29,9 +29,15 @@ const gameApi = require("./apis/gameApi/gameApi");
 const adminDashboardApi = require("./apis/adminDashboardApi/adminDashboardApi");
 const featuresImageApi = require("./apis/featuresImageApi/featuresImageApi");
 const themeColorApi = require("./apis/themeColorApi/themeColorApi");
+const opayApi = require("./apis/opayApi/opayApi");
+const socialLinksApi = require("./apis/socialLinksApi/socialLinksApi");
+
+const fs = require("fs");
 
 const corsConfig = {
   origin: [
+    "http://localhost:3000",
+    "http://localhost:3001",
     "http://localhost:5173",
     "http://localhost:5174",
     `https://${process.env.SITE_URL}`,
@@ -39,6 +45,82 @@ const corsConfig = {
     `http://www.${process.env.SITE_URL}`,
     `www.${process.env.SITE_URL}`,
     `${process.env.SITE_URL}`,
+    `https://dstplay.net`,
+    `http://dstplay.net`,
+    `http://www.dstplay.net`,
+    `www.dstplay.net`,
+    `gamebaji71.com`,
+    `https://dstplay.net`,
+    `http://dstplay.net`,
+    `http://www.dstplay.net`,
+    `www.dstplay.net`,
+    `gamebaji71.com`,
+    `https://gamebaji71.com`,
+    `http://gamebaji71.com`,
+    `http://www.gamebaji71.com`,
+    `www.gamebaji71.com`,
+    `trickboy.xyz`,
+    `https://trickboy.xyz`,
+    `http://trickboy.xyz`,
+    `http://www.trickboy.xyz`,
+    `www.melbet99.com`,
+    `https://melbet99.com`,
+    `http://melbet99.com`,
+    `http://melbet99.com`,
+    `www.melbet99.com`,
+    `www.lclb.net`,
+    `https://lclb.net`,
+    `http://lclb.net`,
+    `http://lclb.net`,
+    `www.jstlive.net`,
+    `https://jstlive.net`,
+    `http://jstlive.net`,
+    `http://jstlive.net`,
+    `www.jstlive.net`,
+    `www.babu666.live`,
+    `https://babu666.live`,
+    `http://babu666.live`,
+    `http://babu666.live`,
+    `www.babu666.live`,
+    `www.babu666.live`,
+    `https://babu666.live`,
+    `http://babu666.live`,
+    `http://babu666.live`,
+    `www.babu666.live`,
+    `www.malta99.com`,
+    `https://malta99.com`,
+    `http://malta99.com`,
+    `http://www.malta99.com`,
+    `www.gamebaji71.com`,
+    `https://gamebaji71.com`,
+    `http://gamebaji71.com`,
+    `http://www.gamebaji71.com`,
+
+    `www.baji444.online`,
+    `https://baji444.online`,
+    `http://baji444.online`,
+    `http://www.baji444.online`,
+    `www.gamebaji71.com`,
+    `https://gamebaji71.com`,
+    `http://gamebaji71.com`,
+    `http://www.gamebaji71.com`,
+
+    `www.baji444.online`,
+    `https://baji444.online`,
+    `http://baji444.online`,
+    `http://www.baji444.online`,
+
+    `www.bajibos.com`,
+    `https://bajibos.com`,
+    `http://bajibos.com`,
+    `http://www.bajibos.com`,
+    `https://api.babu88.oracelsoft.com`,
+    `https://babu88.oracelsoft.com`,
+    `https://api.velki.oracelsoft.com`,
+    `https://velki.oracelsoft.com`,
+    `https://api.tk999.oracelsoft.com`,
+    `https://tk999.oracelsoft.com`,
+    `https://oracelsoft.com`,
     "*",
   ],
   credential: true,
@@ -95,6 +177,8 @@ async function run() {
     // Connect the client to the server
     await client.connect();
 
+    // console.log("db connected")
+
     // Collections
     const usersCollection = client.db("babu88").collection("users");
     const depositsCollection = client.db("babu88").collection("deposits");
@@ -128,10 +212,19 @@ async function run() {
       .db("babu88")
       .collection("depositTransactions");
     const gamesCollection = client.db("babu88").collection("games");
+    const matchesCollection = client.db("babu88").collection("matches");
+
     const featuresImageCollection = client
       .db("babu88")
       .collection("FeaturesImage");
     const themeColorCollection = client.db("babu88").collection("ThemeColor");
+    const socialLinksCollection = client.db("babu88").collection("socialLinks");
+
+    // Add settings (welcomeBonus) collection
+    const settingsCollection = client.db("babu88").collection("settings");
+    // Attach to app.locals for access in routers
+    app.locals.db = client.db("babu88");
+    app.locals.settingsCollection = settingsCollection;
 
     // APIs
     app.use(
@@ -139,15 +232,22 @@ async function run() {
       usersApi(
         usersCollection,
         homeControlsCollection,
-        withdrawTransactionsCollection
+        withdrawTransactionsCollection,
+        gamesCollection
       )
     );
-    app.use("/users", affiliatesApi(usersCollection, homeControlsCollection));
+    app.use(
+      "/users",
+      affiliatesApi(usersCollection, homeControlsCollection, gamesCollection)
+    );
     app.use(
       "/deposits",
       depositsApi(depositsCollection, usersCollection, promotionCollection)
     );
-    app.use("/withdraws", withdrawsApi(withdrawsCollection, usersCollection));
+    app.use(
+      "/withdraws",
+      withdrawsApi(withdrawsCollection, usersCollection, settingsCollection)
+    );
     app.use("/home-controls", homeControlApi(homeControlsCollection));
     app.use("/promotions", promotionApi(promotionCollection));
     app.use("/categories", categoriesApi(categoriesCollection));
@@ -210,12 +310,24 @@ async function run() {
     ); // New router
     app.use("/features-image", featuresImageApi(featuresImageCollection));
     app.use("/theme-color", themeColorApi(themeColorCollection));
+    app.use("/social-links", socialLinksApi(socialLinksCollection));
 
-    app.use("/games", gameApi(gamesCollection));
+    // Opay API
+    app.use("/opay", opayApi(settingsCollection));
+
+    app.use(
+      "/games",
+      gameApi(
+        gamesCollection,
+        usersCollection,
+        categoriesCollection,
+        matchesCollection
+      )
+    );
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
-  //  console.log("Connected to MongoDB!!!✅");
+    //  // console.log("Connected to MongoDB!!!✅");
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
@@ -226,6 +338,25 @@ run().catch(console.dir);
 // Default route
 app.get("/", (req, res) => {
   res.send("server is running");
+});
+
+app.get("/health", (req, res) => {
+  res.status(200).json({ data: "good" });
+});
+
+// Loader config endpoint
+app.get("/loader-config", (req, res) => {
+  try {
+    const filePath = path.join(__dirname, "loader.json");
+    if (fs.existsSync(filePath)) {
+      const raw = fs.readFileSync(filePath, "utf8");
+      const json = JSON.parse(raw || "{}");
+      return res.json({ loader: Boolean(json.loader) });
+    }
+    return res.json({ loader: true });
+  } catch (e) {
+    return res.json({ loader: true });
+  }
 });
 
 app.listen(port, () => {

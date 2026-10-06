@@ -9,7 +9,7 @@ module.exports = (
 ) => {
   // Create a new withdraw transaction (POST)
   router.post("/", async (req, res) => {
-    console.log("this is withdraw -> ", req.body);
+    // console.log("this is withdraw -> ", req.body);
 
     try {
       const {
@@ -251,7 +251,7 @@ module.exports = (
           });
         }
 
-        console.log("0000000000000000000", user);
+        // console.log("0000000000000000000", user);
 
         await usersCollection.updateOne(
           { _id: new ObjectId(transaction.userId) },

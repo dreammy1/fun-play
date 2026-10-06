@@ -1,33 +1,26 @@
 import { uploadImage } from "@/hooks/files";
-import { useGetCategoriesQuery } from "@/redux/features/allApis/categoriesApi/categoriesApi";
 import { useAddGameMutation } from "@/redux/features/allApis/gameApi/gameApi";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useToasts } from "react-toast-notifications";
 
 const GameUpload = () => {
-  const { data: subcategories = [] } = useGetCategoriesQuery();
   const [addGame, { isLoading }] = useAddGameMutation();
   const [formData, setFormData] = useState({
     image: null,
-    title: "",
-    category: "",
-    subcategory: "",
-    link: "",
     badge: "",
+    isHot: false,
+    isNew: false,
+    gameID: "",
   });
+  const [categories, setCategories] = useState([]);
+  const [providers, setProviders] = useState([]);
+  const [games, setGames] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState("");
+  const [selectedProvider, setSelectedProvider] = useState("");
+  const [selectedGame, setSelectedGame] = useState(null);
   const [previewImage, setPreviewImage] = useState(null);
   const [errors, setErrors] = useState({});
   const { addToast } = useToasts();
-
-  const categories = [
-    { label: "ক্রিকেট", value: "cricket" },
-    { label: "ক্যাসিনো", value: "casino" },
-    { label: "স্লট", value: "slot" },
-    { label: "টেবিল খেলা", value: "table" },
-    { label: "এসবি", value: "sb" },
-    { label: "মাছ ধরা", value: "fishing" },
-    { label: "ক্র্যাশ", value: "crash" },
-  ];
 
   const badges = [
     { label: "None", value: "" },
@@ -35,17 +28,76 @@ const GameUpload = () => {
     { label: "Hot", value: "hot" },
   ];
 
+  // Fetch categories from premium API
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const res = await fetch(
+          "https://apigames.oracleapi.net/api/categories",
+          {
+            headers: {
+              "x-api-key":
+                "b4fb7adb955b1078d8d38b54f5ad7be8ded17cfba85c37e4faa729ddd679d379",
+            },
+          }
+        );
+        const data = await res.json();
+        if (data.success) setCategories(data.data);
+      } catch {}
+    };
+    fetchCategories();
+  }, []);
+
+  // Fetch providers when category changes
+  useEffect(() => {
+    if (!selectedCategory) return setProviders([]);
+    const fetchProviders = async () => {
+      try {
+        const res = await fetch(
+          "https://apigames.oracleapi.net/api/providers",
+          {
+            headers: {
+              "x-api-key":
+                "b4fb7adb955b1078d8d38b54f5ad7be8ded17cfba85c37e4faa729ddd679d379",
+            },
+          }
+        );
+        const data = await res.json();
+        if (data.success) {
+          // Filter providers that have games in this category (optional, if API supports)
+          setProviders(data.data);
+        }
+      } catch {}
+    };
+    fetchProviders();
+  }, [selectedCategory]);
+
+  // Fetch games when provider changes
+  useEffect(() => {
+    if (!selectedProvider) return setGames([]);
+    const fetchGames = async () => {
+      try {
+        const res = await fetch(
+          `https://apigames.oracleapi.net/api/games/pagination?page=1&limit=100&provider=${selectedProvider}`,
+          {
+            headers: {
+              "x-api-key":
+                "b4fb7adb955b1078d8d38b54f5ad7be8ded17cfba85c37e4faa729ddd679d379",
+            },
+          }
+        );
+        const data = await res.json();
+        if (data.success) setGames(data.data);
+      } catch {}
+    };
+    fetchGames();
+  }, [selectedProvider]);
+
   const handleInputChange = (e) => {
-
-   // console.log(e.target.value);
-    
-
-    const { name, value } = e.target;
+    const { name, value, type, checked } = e.target;
     setFormData({
       ...formData,
-      [name]: value,
-      // Reset subcategory when category changes
-      ...(name === "category" ? { subcategory: "" } : {}),
+      [name]: type === "checkbox" ? checked : value,
     });
   };
 
@@ -53,8 +105,6 @@ const GameUpload = () => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       setFormData({ ...formData, image: file });
-
-      // Create preview
       const reader = new FileReader();
       reader.onloadend = () => {
         setPreviewImage(reader.result);
@@ -66,37 +116,23 @@ const GameUpload = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     const validationErrors = {};
-
-    if (!formData.title.trim()) validationErrors.title = "Title is required";
-    if (!formData.category) validationErrors.category = "Category is required";
+    if (!selectedCategory) validationErrors.category = "Category is required";
+    if (!selectedProvider) validationErrors.provider = "Provider is required";
+    if (!selectedGame) validationErrors.game = "Game is required";
     if (!formData.image) validationErrors.image = "Image is required";
-   // if (!formData.link.trim()) validationErrors.link = "Link is required";
-
-    // Validate subcategory if there are filtered subcategories
-    if (filteredSubcategories.length > 0 && !formData.subcategory) {
-      validationErrors.subcategory = "Subcategory is required";
-    }
-
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
       return;
     }
     const { filePath } = await uploadImage(formData.image);
-
     const info = {
-      title: formData.title,
-      category: formData.category,
-      subcategory: formData.subcategory,
+      gameID: selectedGame._id,
       image: filePath,
-      link: formData.link,
       badge: formData.badge,
+      isHot: formData.isHot,
+      isNew: formData.isNew,
     };
-
-   // console.log("this is info => ",info);
-    
-
     const result = await addGame(info);
-
     if (result.error) {
       addToast(result.error.data.message, {
         appearance: "error",
@@ -109,105 +145,43 @@ const GameUpload = () => {
       });
       setFormData({
         image: null,
-        title: "",
-        category: "",
-        subcategory: "",
-        link: "",
         badge: "",
+        isHot: false,
+        isNew: false,
+        gameID: "",
       });
       setPreviewImage(null);
+      setSelectedCategory("");
+      setSelectedProvider("");
+      setSelectedGame(null);
       setErrors({});
     }
   };
 
-  // Filter subcategories based on selected category
-  const filteredSubcategories = subcategories.filter(
-    (subcat) => subcat.category === formData.category
-  );
-
   return (
-    <div className="w-full md:w-1/4 bg-white rounded-lg shadow-md">
+    <div className="w-full md:w-1/3 bg-white rounded-lg shadow-md p-6">
       <h1 className="text-2xl font-bold text-gray-800 mb-6">Upload Game</h1>
-
       <form onSubmit={handleSubmit}>
-        {/* Image Upload */}
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Game Image
-          </label>
-          <div className="flex items-center gap-4">
-            <div className="ml-4">
-              <label className="cursor-pointer bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                Choose File
-                <input
-                  type="file"
-                  className="sr-only"
-                  accept="image/*"
-                  onChange={handleFileChange}
-                />
-              </label>
-              <p className="mt-1 text-xs text-gray-500">PNG, JPG up to 5MB</p>
-            </div>
-            {previewImage && (
-              <div className="relative rounded-md overflow-hidden border border-dashed border-gray-300 w-32 h-32 flex items-center justify-center">
-                <img
-                  src={previewImage}
-                  alt="Preview"
-                  className="w-full h-full object-cover"
-                />
-              </div>
-            )}
-          </div>
-          {errors.image && (
-            <p className="mt-1 text-sm text-red-600">{errors.image}</p>
-          )}
-        </div>
-
-        {/* Title */}
-        <div className="mb-6">
-          <label
-            htmlFor="title"
-            className="block text-sm font-medium text-gray-700 mb-2"
-          >
-            Game Title
-          </label>
-          <input
-            type="text"
-            id="title"
-            name="title"
-            value={formData.title}
-            onChange={handleInputChange}
-            className={`block w-full px-3 py-2 border ${
-              errors.title ? "border-red-500" : "border-gray-300"
-            } rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500`}
-            placeholder="Enter game title"
-          />
-          {errors.title && (
-            <p className="mt-1 text-sm text-red-600">{errors.title}</p>
-          )}
-        </div>
-
         {/* Category */}
         <div className="mb-6">
-          <label
-            htmlFor="category"
-            className="block text-sm font-medium text-gray-700 mb-2"
-          >
+          <label className="block text-sm font-medium text-gray-700 mb-2">
             Category
           </label>
           <select
-            id="category"
-            name="category"
-            value={formData.category}
-            onChange={handleInputChange}
+            value={selectedCategory}
+            onChange={(e) => {
+              setSelectedCategory(e.target.value);
+              setSelectedProvider("");
+              setSelectedGame(null);
+            }}
             className={`block w-full px-3 py-2 border ${
               errors.category ? "border-red-500" : "border-gray-300"
             } rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500`}
           >
             <option value="">Select a category</option>
-            {categories.map((category) => (
-              <option key={category.value} value={category.value}>
-                {category.label}
+            {categories.map((cat) => (
+              <option key={cat._id} value={cat._id}>
+                {cat.name}
               </option>
             ))}
           </select>
@@ -216,51 +190,90 @@ const GameUpload = () => {
           )}
         </div>
 
-        {/* Subcategory (conditional) */}
-        {filteredSubcategories.length > 0 && (
+        {/* Provider */}
+        {selectedCategory && (
           <div className="mb-6">
-            <label
-              htmlFor="subcategory"
-              className="block text-sm font-medium text-gray-700 mb-2"
-            >
-              Subcategory
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Provider
             </label>
             <select
-              id="subcategory"
-              name="subcategory"
-              value={formData.subcategory}
-              onChange={handleInputChange}
+              value={selectedProvider}
+              onChange={(e) => {
+                setSelectedProvider(e.target.value);
+                setSelectedGame(null);
+              }}
               className={`block w-full px-3 py-2 border ${
-                errors.subcategory ? "border-red-500" : "border-gray-300"
+                errors.provider ? "border-red-500" : "border-gray-300"
               } rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500`}
             >
-              <option value="">Select a subcategory</option>
-              {filteredSubcategories.map((subcategory) => (
-                <option key={subcategory._id} value={subcategory?.value}>
-                  {subcategory.title}
+              <option value="">Select a provider</option>
+              {providers.map((prov) => (
+                <option key={prov._id} value={prov._id}>
+                  {prov.name}
                 </option>
               ))}
             </select>
-            {errors.subcategory && (
-              <p className="mt-1 text-sm text-red-600">{errors.subcategory}</p>
+            {errors.provider && (
+              <p className="mt-1 text-sm text-red-600">{errors.provider}</p>
             )}
           </div>
         )}
 
-        {/* Badge (New/Hot) */}
+        {/* Game */}
+        {selectedProvider && (
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Game
+            </label>
+            <select
+              value={selectedGame ? selectedGame._id : ""}
+              onChange={(e) => {
+                const game = games.find((g) => g._id === e.target.value);
+                setSelectedGame(game || null);
+              }}
+              className={`block w-full px-3 py-2 border ${
+                errors.game ? "border-red-500" : "border-gray-300"
+              } rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500`}
+            >
+              <option value="">Select a game</option>
+              {games.map((game) => (
+                <option key={game._id} value={game._id}>
+                  {game.name}
+                </option>
+              ))}
+            </select>
+            {errors.game && (
+              <p className="mt-1 text-sm text-red-600">{errors.game}</p>
+            )}
+          </div>
+        )}
+
+        {/* Game Image */}
         <div className="mb-6">
-          <label
-            htmlFor="badge"
-            className="block text-sm font-medium text-gray-700 mb-2"
-          >
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Game Image
+          </label>
+          <input type="file" accept="image/*" onChange={handleFileChange} />
+          {previewImage && (
+            <div className="mt-2">
+              <img src={previewImage} alt="Preview" className="h-24 rounded" />
+            </div>
+          )}
+          {errors.image && (
+            <p className="mt-1 text-sm text-red-600">{errors.image}</p>
+          )}
+        </div>
+
+        {/* Badge */}
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
             Badge
           </label>
           <select
-            id="badge"
             name="badge"
             value={formData.badge}
             onChange={handleInputChange}
-            className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+            className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm"
           >
             {badges.map((badge) => (
               <option key={badge.value} value={badge.value}>
@@ -270,36 +283,35 @@ const GameUpload = () => {
           </select>
         </div>
 
-        {/* Link */}
-        <div className="mb-6">
-          <label
-            htmlFor="link"
-            className="block text-sm font-medium text-gray-700 mb-2"
-          >
-            Game Link
+        {/* Hot/New checkboxes */}
+        <div className="mb-6 flex gap-6">
+          <label className="inline-flex items-center">
+            <input
+              type="checkbox"
+              name="isHot"
+              checked={formData.isHot}
+              onChange={handleInputChange}
+              className="mr-2"
+            />
+            Hot
           </label>
-          <input
-            type="text"
-            id="link"
-            name="link"
-            value={formData.link}
-            onChange={handleInputChange}
-            className={`block w-full px-3 py-2 border ${
-              errors.link ? "border-red-500" : "border-gray-300"
-            } rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500`}
-            placeholder="https://example.com/game"
-          />
-          {errors.link && (
-            <p className="mt-1 text-sm text-red-600">{errors.link}</p>
-          )}
+          <label className="inline-flex items-center">
+            <input
+              type="checkbox"
+              name="isNew"
+              checked={formData.isNew}
+              onChange={handleInputChange}
+              className="mr-2"
+            />
+            New
+          </label>
         </div>
 
-        {/* Submit Button */}
         <div className="flex justify-end">
           <button
             disabled={isLoading}
             type="submit"
-            className="px-4 py-2 bg-indigo-600 disabled:bg-slate-400 text-white rounded-md shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            className="px-4 py-2 bg-indigo-600 disabled:bg-slate-400 text-white rounded-md shadow-sm hover:bg-indigo-700"
           >
             Upload Game
           </button>
