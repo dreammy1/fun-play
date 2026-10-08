@@ -313,6 +313,7 @@ const usersApi = (
 
       res.status(200).json({ token });
     } catch (error) {
+      console.error("User login failed:", error.message);
       res.status(500).json({ error: "Login failed" });
     }
   });
