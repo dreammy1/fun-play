@@ -147,6 +147,34 @@ const gameApi = (
     }
   });
 
+  // Return the provider catalogue independently of admin category assignments.
+  // Category assignments control customer placement; they must not hide games
+  // from the admin catalogue or make its provider selector empty.
+  router.get("/providers", async (_req, res) => {
+    const apiKey = process.env.ORACLE_GAMES_API_KEY || process.env.GAME_API_KEY;
+    if (!apiKey) {
+      return res.status(503).json({
+        success: false,
+        error: "Game provider API key is not configured on the server.",
+      });
+    }
+
+    try {
+      const response = await axios.get("https://apigames.oracleapi.net/api/providers", {
+        headers: { "x-api-key": apiKey },
+        timeout: 15000,
+      });
+      const providers = Array.isArray(response.data?.data) ? response.data.data : [];
+      if (response.data?.success === false) {
+        return res.status(502).json({ success: false, error: "Provider catalogue request failed." });
+      }
+      return res.json({ success: true, count: providers.length, data: providers });
+    } catch (err) {
+      console.error("Error in /games/providers:", err.response?.status || "", err.message);
+      return res.status(502).json({ success: false, error: "Failed to fetch the provider catalogue." });
+    }
+  });
+
   // Get games by category value (for category filter)
   router.get("/by-category/:categoryValue", async (req, res) => {
     const categoryValue = String(req.params.categoryValue || "").trim().toLowerCase();

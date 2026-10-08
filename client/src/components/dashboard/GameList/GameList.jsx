@@ -89,6 +89,8 @@ const GamesList = () => {
   // Upsert no longer used for images; selection saved via dedicated endpoint
   const { addToast } = useToasts();
   const [providers, setProviders] = useState([]);
+  const [isProvidersLoading, setIsProvidersLoading] = useState(true);
+  const [providersError, setProvidersError] = useState("");
   const [selectedProvider, setSelectedProvider] = useState("");
   const [games, setGames] = useState([]);
   const [page, setPage] = useState(1);
@@ -99,17 +101,25 @@ const GamesList = () => {
   const [savingId, setSavingId] = useState("");
   const [savingFlagsId, setSavingFlagsId] = useState("");
 
-  // Fetch only user-created providers from backend
+  // Load every provider from the same upstream catalogue that supplies games.
   useEffect(() => {
     const fetchProviders = async () => {
       try {
         const res = await fetch(
-          `${import.meta.env.VITE_BASE_API_URL}/categories/providers`
+          `${import.meta.env.VITE_BASE_API_URL}/games/providers`
         );
         const data = await res.json();
-        if (data.success) setProviders(data.data);
+        if (!res.ok || !data.success || !Array.isArray(data.data)) {
+          throw new Error(data.error || "Failed to load providers");
+        }
+        setProviders(data.data);
+        setProvidersError("");
       } catch (err) {
-        console.error("Failed to fetch user providers:", err);
+        setProviders([]);
+        setProvidersError(err.message || "Failed to load providers");
+        console.error("Failed to fetch providers:", err);
+      } finally {
+        setIsProvidersLoading(false);
       }
     };
     fetchProviders();
@@ -191,6 +201,11 @@ const GamesList = () => {
         else set.delete(gid);
         return Array.from(set);
       });
+      setGames((prev) =>
+        prev.map((game) =>
+          String(game._id) === String(gid) ? { ...game, selected: next } : game
+        )
+      );
     } catch (err) {
       console.error("Selection save failed", err);
       addToast("Failed to save selection", { appearance: "error", autoDismiss: true });
@@ -359,7 +374,7 @@ const GamesList = () => {
 
   // Delete flow removed from UI
 
-  if (isLoading || isCategoriesLoading)
+  if (isProvidersLoading || isLoading)
     return <div className="text-center py-8">Loading games...</div>;
   if (isError)
     return (
@@ -371,6 +386,12 @@ const GamesList = () => {
   return (
     <div className="container mx-auto w-full md:w-3/4">
       <h1 className="text-3xl font-bold text-gray-800 mb-8">All Games</h1>
+
+      {providersError && (
+        <div className="mb-4 rounded bg-red-50 p-3 text-sm text-red-700">
+          Provider catalogue unavailable: {providersError}
+        </div>
+      )}
 
       {/* Provider Selection */}
       <div className="bg-white p-6 rounded-lg shadow-md mb-8">
@@ -386,16 +407,20 @@ const GamesList = () => {
           className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
         >
           <option value="">Select a provider</option>
-          {providers.map((prov) => (
-            <option
-              key={prov._id.provider || prov._id._id || prov._id._id}
-              value={prov.provider || prov._id.provider || prov._id.provider}
-            >
-              {console.log(prov)}
-              {prov.name || prov._id.providerName || prov.providerName}
-            </option>
-          ))}
+          {providers.map((prov) => {
+            const providerId = prov?._id?.provider || prov?.provider || prov?._id || prov?.id;
+            const providerName = prov?.name || prov?.providerName || prov?._id?.providerName || providerId;
+            if (!providerId) return null;
+            return (
+              <option key={String(providerId)} value={String(providerId)}>
+                {providerName}
+              </option>
+            );
+          })}
         </select>
+        {!providers.length && !providersError && (
+          <p className="mt-3 text-sm text-gray-500">No providers are available from the catalogue.</p>
+        )}
       </div>
 
       {/* Games Grid */}
@@ -418,16 +443,19 @@ const GamesList = () => {
                   const babuDoc = Array.isArray(projectDocs)
                     ? projectDocs.find((d) => d?.projectName?.title === "Babu88")
                     : null;
-                  const rawPath = babuDoc?.image  || "";
+                  const rawPath = babuDoc?.image || game.image || game.thumbnail || game.icon || "";
 
                   if (!rawPath) {
                     return <div className="w-full h-48 bg-gray-100" />;
                   }
 
                   const isAbsolute = /^https?:\/\//i.test(rawPath);
+                  const normalizedPath = rawPath.replace(/^\/+/, "");
                   const src = isAbsolute
                     ? rawPath
-                    : `https://apigames.oracleapi.net/api/${rawPath}`;
+                    : normalizedPath.startsWith("uploads/")
+                      ? `${import.meta.env.VITE_BASE_API_URL}/${normalizedPath}`
+                      : `https://apigames.oracleapi.net/api/${normalizedPath}`;
 
                   return (
                     <img

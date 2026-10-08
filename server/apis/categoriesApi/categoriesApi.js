@@ -9,15 +9,17 @@ const categoriesApi = (categoriesCollection) => {
   // Get all user-created providers (distinct provider IDs from categories)
   router.get("/providers", async (req, res) => {
     try {
+      const apiKey = process.env.ORACLE_GAMES_API_KEY || process.env.GAME_API_KEY;
+      if (!apiKey) {
+        return res.status(503).json({ success: false, error: "Game provider API key is not configured on the server." });
+      }
       const providers = await categoriesCollection.find({}).toArray();
 
       const { data: providerData } = await axios.get(
         "https://apigames.oracleapi.net/api/providers",
         {
-          headers: {
-            "x-api-key":
-              "b4fb7adb955b1078d8d38b54f5ad7be8ded17cfba85c37e4faa729ddd679d379",
-          },
+          headers: { "x-api-key": apiKey },
+          timeout: 15000,
         }
       );
 
@@ -67,13 +69,15 @@ const categoriesApi = (categoriesCollection) => {
   // Get all category data with provider info
   router.get("/", async (req, res) => {
     try {
+      const apiKey = process.env.ORACLE_GAMES_API_KEY || process.env.GAME_API_KEY;
+      if (!apiKey) {
+        return res.status(503).json({ success: false, error: "Game provider API key is not configured on the server." });
+      }
       const { data: providerData } = await axios.get(
         "https://apigames.oracleapi.net/api/providers",
         {
-          headers: {
-            "x-api-key":
-              "b4fb7adb955b1078d8d38b54f5ad7be8ded17cfba85c37e4faa729ddd679d379",
-          },
+          headers: { "x-api-key": apiKey },
+          timeout: 15000,
         }
       );
 
