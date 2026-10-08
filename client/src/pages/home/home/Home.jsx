@@ -156,8 +156,8 @@ const Home = () => {
     { image: crashImage, title: "ক্র্যাশ", value: "crash" },
   ];
 
-  // Filter games: show only lobby-selected games on Home (incl. Jackpot)
-  let filteredGames = (games || []).filter((game) => game?.lobby === true);
+  // Show games returned by the API; lobby is an optional admin display flag.
+  let filteredGames = (games || []);
   if (activeFilter === "hot" || activeFilter === "হট গেমস") {
     filteredGames = filteredGames.filter((game) => game.hot === true);
   }
