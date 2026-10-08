@@ -11,7 +11,6 @@ const GameCard = ({
   gameText,
   headingCenter,
   demoId,
-  gameLink,
   hot,
   isNew,
 }) => {
@@ -65,14 +64,25 @@ const GameCard = ({
     <div className="">
       <div className="relative group overflow-hidden" onClick={handleCardClick}>
         {(() => {
-          const BASE = "https://apigames.oracleapi.net/api/";
+          const ORACLE_ASSET_BASE = "https://apigames.oracleapi.net/api/";
+          const API_BASE = (
+            import.meta.env.VITE_BASE_API_URL || window.location.origin
+          ).replace(/\/+$/, "");
           let rawPath = "";
           if (gameCardImg && typeof gameCardImg === "object") {
-            const projectDocs = gameCardImg.projectImageDocs || [];
-            const babuDoc = Array.isArray(projectDocs)
-              ? projectDocs.find((d) => d?.projectName?.title === "Babu88")
-              : null;
-            rawPath = babuDoc?.image || gameCardImg.image || "";
+            const projectDocs = Array.isArray(gameCardImg.projectImageDocs)
+              ? gameCardImg.projectImageDocs
+              : [];
+            const preferredDoc =
+              projectDocs.find(
+                (doc) => doc?.projectName?.title === "Babu88" && doc?.image
+              ) || projectDocs.find((doc) => doc?.image);
+            rawPath =
+              preferredDoc?.image ||
+              gameCardImg.image ||
+              gameCardImg.thumbnail ||
+              gameCardImg.icon ||
+              "";
           } else if (typeof gameCardImg === "string") {
             rawPath = gameCardImg || "";
           }
@@ -82,12 +92,45 @@ const GameCard = ({
           }
 
           const isAbsolute = /^https?:\/\//i.test(rawPath);
-          const src = isAbsolute ? rawPath : `${BASE}${rawPath}`;
+          const normalizedPath = rawPath.replace(/^\/+/, "");
+          const isUploadedImage = normalizedPath.startsWith("uploads/");
+          const src = isAbsolute
+            ? rawPath
+            : isUploadedImage
+            ? `${API_BASE}/${normalizedPath}`
+            : `${ORACLE_ASSET_BASE}${normalizedPath}`;
+          const fallbackImage = (() => {
+            if (isUploadedImage) {
+              return `https://apigames.oracleapi.net/${normalizedPath}`;
+            }
+            if (!isAbsolute) return "";
+            try {
+              const imageUrl = new URL(rawPath);
+              const apiUrl = new URL(API_BASE);
+              const path = imageUrl.pathname.replace(/^\/+/, "");
+              return imageUrl.origin === apiUrl.origin && path.startsWith("uploads/")
+                ? `https://apigames.oracleapi.net/${path}`
+                : "";
+            } catch {
+              return "";
+            }
+          })();
 
           return (
             <img
               className="w-full h-28 sm:h-36 object-cover rounded-[20px] lg:rounded-xl"
               src={src}
+              data-fallback-src={fallbackImage}
+              onError={(event) => {
+                const image = event.currentTarget;
+                const fallback = image.dataset.fallbackSrc;
+                if (fallback && image.dataset.fallbackAttempted !== "true") {
+                  image.dataset.fallbackAttempted = "true";
+                  image.src = fallback;
+                  return;
+                }
+                image.style.display = "none";
+              }}
               alt={gameHeading || "Game Image"}
             />
           );

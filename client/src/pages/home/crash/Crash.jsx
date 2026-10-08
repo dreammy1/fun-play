@@ -15,10 +15,10 @@ const Crash = () => {
   useEffect(() => {
     const fetchCrashGames = async () => {
       setLoading(true);
-      setError("");
-      try {
-        const res = await fetch(
-          `${import.meta.env.VITE_BASE_API_URL}/games/crash-all`
+        setError("");
+        try {
+          const res = await fetch(
+          `${import.meta.env.VITE_BASE_API_URL}/games/by-category/crash`
         );
         const data = await res.json();
         if (data.success && Array.isArray(data.data)) {
@@ -54,14 +54,14 @@ const Crash = () => {
       {/* Banner img */}
       <Banner
         B_image={crashBG}
-        B_heading={"মাছ ধরা"}
+        B_heading={"ক্র্যাশ গেম"}
         B_semiText={`${
           import.meta.env.VITE_SITE_NAME
-        } এর সাথে আপনার জয়ের জন্য রিল করুন`}
-        B_text={"আপনার ভাগ্য চেষ্টা করুন এবং আজ জ্যাকপট ফিশিং গেম শুরু করুন!"}
+        }-এ দ্রুতগতির ক্র্যাশ গেম খেলুন`}
+        B_text="ক্র্যাশ হওয়ার আগে ক্যাশ আউট করুন এবং প্রতিটি রাউন্ড উপভোগ করুন।"
       />
       {/* Mobile slide menu */}
-      <RouteChange text={"মাছ ধরা"} />
+      <RouteChange text={"ক্র্যাশ গেম"} />
       {/* Provider Filter */}
       <div className="container mx-auto px-4 sm:px-10 lg:px-24 mt-6">
         <div className="flex flex-wrap gap-3 justify-center md:justify-start">
@@ -95,21 +95,12 @@ const Crash = () => {
                 <GameCard
                   demoId={game._id}
                   key={game._id}
-                  gameCardImg={(function() {
-                    const BASE = "https://apigames.oracleapi.net/api/";
-                    const projectDocs = game.projectImageDocs || [];
-                    const babuDoc = Array.isArray(projectDocs)
-                      ? projectDocs.find((d) => d?.projectName?.title === "Babu88")
-                      : null;
-                    const raw = babuDoc?.image  || "";
-                    if (!raw) return "";
-                    const isAbs = /^https?:\/\//i.test(raw);
-                    return isAbs ? raw : `${BASE}${raw}`;
-                  })()}
+                  gameCardImg={game}
                   gameLink={game?.link ? game?.link : null}
                   hot={game.hot}
                   isNew={game.new}
                   gameHeading={game.title || game.name} // Fallback to name if title is not available
+                  gameText={game.category?.name || game.category || game.provider?.name}
                   headingCenter={true}
                 />
               ))}

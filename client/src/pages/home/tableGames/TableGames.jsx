@@ -1,9 +1,6 @@
 import Banner from "@/components/shared/banner/Banner";
 import GameCard from "@/components/shared/gameCard/GameCard";
 import RouteChange from "@/components/shared/routeChange/RouteChange";
-import { useGetGamesQuery } from "@/redux/features/allApis/gameApi/gameApi";
-import { useGetCategoriesQuery } from "@/redux/features/allApis/categoriesApi/categoriesApi";
-import { useSelector } from "react-redux";
 import { useEffect, useState } from "react";
 import tableBG from "../../../assets/tableBG.webp"; // ডামি পাথ, প্রকৃত পাথ দিয়ে রিপ্লেস করো
 
@@ -18,10 +15,10 @@ const TableGames = () => {
   useEffect(() => {
     const fetchTableGames = async () => {
       setLoading(true);
-      setError("");
-      try {
-        const res = await fetch(
-          `${import.meta.env.VITE_BASE_API_URL}/games/table-all`
+        setError("");
+        try {
+          const res = await fetch(
+          `${import.meta.env.VITE_BASE_API_URL}/games/by-category/table`
         );
         const data = await res.json();
         if (data.success && Array.isArray(data.data)) {
@@ -57,14 +54,14 @@ const TableGames = () => {
       {/* Banner img */}
       <Banner
         B_image={tableBG}
-        B_heading="মাছ ধরা"
+        B_heading="টেবিল গেম"
         B_semiText={`${
           import.meta.env.VITE_SITE_NAME
-        } এর সাথে আপনার জয়ের জন্য রিল করুন`}
-        B_text="আপনার ভাগ্য চেষ্টা করুন এবং আজ জ্যাকপট ফিশিং গেম শুরু করুন!"
+        }-এ টেবিল গেম উপভোগ করুন`}
+        B_text="বিভিন্ন ধরনের টেবিল ও লাইভ ক্যাসিনো গেম খেলুন!"
       />
       {/* Mobile slide menu */}
-      <RouteChange text="মাছ ধরা" />
+      <RouteChange text="টেবিল গেম" />
       {/* Provider Filter */}
       <div className="container mx-auto px-4 sm:px-10 lg:px-24 mt-6">
         <div className="flex flex-wrap gap-3 justify-center md:justify-start">
@@ -98,21 +95,12 @@ const TableGames = () => {
                 <GameCard
                   demoId={game._id}
                   key={game._id}
-                  gameCardImg={(function() {
-                    const BASE = "https://apigames.oracleapi.net/api/";
-                    const projectDocs = game.projectImageDocs || [];
-                    const babuDoc = Array.isArray(projectDocs)
-                      ? projectDocs.find((d) => d?.projectName?.title === "Babu88")
-                      : null;
-                    const raw = babuDoc?.image  || "";
-                    if (!raw) return "";
-                    const isAbs = /^https?:\/\//i.test(raw);
-                    return isAbs ? raw : `${BASE}${raw}`;
-                  })()}
+                  gameCardImg={game}
                   gameLink={game?.link ? game?.link : null}
                   hot={game.hot}
                   isNew={game.new}
                   gameHeading={game.title || game.name} // Fallback to name if title is not available
+                  gameText={game.category?.name || game.category || game.provider?.name}
                   headingCenter={true}
                 />
               ))}

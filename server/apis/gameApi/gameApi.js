@@ -239,52 +239,46 @@ const gameApi = (
     }
   });
 
-  // Get premium game_uuid by local DB _id
+  // Resolve the provider UUID for both locally curated games and catalogue-only games.
   router.get("/premium/:id", async (req, res) => {
     const { id } = req.params;
 
-    console.log("id:", id);
-
-    if (!ObjectId.isValid(id)) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Invalid game id" });
+    if (!id || id.length > 200) {
+      return res.status(400).json({ success: false, message: "Invalid game id" });
     }
-    try {
-      // 1. Find the game in your DB
-      const localGame = await gamesCollection.findOne({
-        gameID: id,
-      });
 
-      // console.log("localGame: 1", localGame);
-      if (!localGame || !localGame.gameID) {
-        return res
-          .status(404)
-          .json({ success: false, message: "Game not found in DB" });
+    const apiKey = process.env.ORACLE_GAMES_API_KEY || process.env.GAME_API_KEY;
+    if (!apiKey) {
+      return res.status(503).json({ success: false, message: "Game provider API key is not configured." });
+    }
+
+    try {
+      // Preserve support for curated records whose URL uses the Mongo _id.
+      let localGame = await gamesCollection.findOne({ gameID: id });
+      if (!localGame && ObjectId.isValid(id)) {
+        localGame = await gamesCollection.findOne({ _id: new ObjectId(id) });
       }
 
-      // 2. Fetch the game from premium API by gameID
-      const apiKey =
-        (process.env.ORACLE_GAMES_API_KEY || process.env.GAME_API_KEY); // or your config
+      // Catalogue cards carry the provider's _id directly, so fall back to it
+      // when no local curation row exists.
+      const providerGameId = String(localGame?.gameID || id);
       const response = await axios.get(
-        `https://apigames.oracleapi.net/api/games/${localGame.gameID}`,
-        { headers: { "x-api-key": apiKey } }
+        `https://apigames.oracleapi.net/api/games/${encodeURIComponent(providerGameId)}`,
+        { headers: { "x-api-key": apiKey }, timeout: 15000 }
       );
-      const premiumGame = response.data?.data;
+      const premiumGame = response.data?.data?.data || response.data?.data || response.data;
 
       if (!premiumGame || !premiumGame.game_uuid) {
-        return res
-          .status(404)
-          .json({ success: false, message: "Game not found in premium API" });
+        return res.status(404).json({ success: false, message: "Game not found in provider catalogue." });
       }
 
-      // 3. Return the game_uuid
       return res.json({ success: true, game_uuid: premiumGame.game_uuid });
     } catch (err) {
-      console.error(err);
-      return res
-        .status(500)
-        .json({ success: false, message: "Server error", error: err.message });
+      console.error("Error resolving provider game UUID:", err.response?.status || "", err.message);
+      if (err.response?.status === 404) {
+        return res.status(404).json({ success: false, message: "Game not found in provider catalogue." });
+      }
+      return res.status(502).json({ success: false, message: "Failed to fetch game from provider." });
     }
   });
 

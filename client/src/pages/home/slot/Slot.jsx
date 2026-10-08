@@ -15,10 +15,10 @@ const Slot = () => {
   useEffect(() => {
     const fetchSlotGames = async () => {
       setLoading(true);
-      setError("");
-      try {
-        const res = await fetch(
-          `${import.meta.env.VITE_BASE_API_URL}/games/slot-all`
+        setError("");
+        try {
+          const res = await fetch(
+          `${import.meta.env.VITE_BASE_API_URL}/games/by-category/slot`
         );
         const data = await res.json();
         if (data.success && Array.isArray(data.data)) {
@@ -95,21 +95,12 @@ const Slot = () => {
                 <GameCard
                   demoId={game._id}
                   key={game._id}
-                  gameCardImg={(function() {
-                    const BASE = "https://apigames.oracleapi.net/api/";
-                    const projectDocs = game.projectImageDocs || [];
-                    const babuDoc = Array.isArray(projectDocs)
-                      ? projectDocs.find((d) => d?.projectName?.title === "Babu88")
-                      : null;
-                    const raw = babuDoc?.image  || "";
-                    if (!raw) return "";
-                    const isAbs = /^https?:\/\//i.test(raw);
-                    return isAbs ? raw : `${BASE}${raw}`;
-                  })()}
+                  gameCardImg={game}
                   gameLink={game?.link ? game?.link : null}
                   hot={game.hot}
                   isNew={game.new}
                   gameHeading={game.title || game.name} // Fallback to name if title is not available
+                  gameText={game.category?.name || game.category || game.provider?.name}
                   headingCenter={true}
                 />
               ))}
