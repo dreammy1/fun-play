@@ -31,12 +31,13 @@ const AdminLogin = () => {
   // Form submit handler
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isLoading) return;
 
     try {
-      const { data: loginData } = await loginUser(formData);
+      const loginData = await loginUser(formData).unwrap();
 
       if (loginData.token) {
-        const { data: userData } = await getUser(loginData.token);
+        const userData = await getUser(loginData.token).unwrap();
 
         if (userData?.role !== "admin") {
           dispatch(logout());

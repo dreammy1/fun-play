@@ -147,6 +147,11 @@ const client = new MongoClient(uri, {
 // Serve static files from the "Uploads" directory
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
+// The fun-admin Render service is a Node web service, so serve the committed
+// React production bundle from the same origin as the API.
+const clientDist = path.join(__dirname, "../client/dist");
+app.use(express.static(clientDist));
+
 // Routes for image upload and delete
 app.post("/upload", upload.single("image"), (req, res) => {
   if (!req.file) {
@@ -335,8 +340,10 @@ async function run() {
 }
 run().catch(console.dir);
 
-// Default route
+// Default route: serve the admin UI when the production bundle is present.
 app.get("/", (req, res) => {
+  const indexPath = path.join(clientDist, "index.html");
+  if (fs.existsSync(indexPath)) return res.sendFile(indexPath);
   res.send("server is running");
 });
 
@@ -357,6 +364,13 @@ app.get("/loader-config", (req, res) => {
   } catch (e) {
     return res.json({ loader: true });
   }
+});
+
+// React Router entry points must return the SPA document on a direct visit.
+app.get(["/admin", "/dashboard", "/dashboard/*"], (req, res) => {
+  const indexPath = path.join(clientDist, "index.html");
+  if (fs.existsSync(indexPath)) return res.sendFile(indexPath);
+  res.status(503).send("Admin UI is not built");
 });
 
 app.listen(port, () => {

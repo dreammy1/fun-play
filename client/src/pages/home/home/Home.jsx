@@ -19,6 +19,10 @@ import ImageVideoSlider from "@/components/home/ImageVideoSlider/ImageVideoSlide
 import Matches from "@/components/home/Matches/Matches";
 import AnimationBanner from "../AnimationBanner/AnimationBanner";
 
+const apiBaseUrl =
+  import.meta.env.VITE_BASE_API_URL ||
+  (typeof window !== "undefined" ? window.location.origin : "");
+
 const Home = () => {
   const { addToast } = useToasts();
   // const { data: games } = useGetGamesQuery();
@@ -225,7 +229,7 @@ const Home = () => {
                   const raw = preferredDoc?.image || game?.image || game?.thumbnail || game?.icon || "";
                   if (!raw) return "";
                   if (/^https?:\/\//i.test(raw)) return raw;
-                  if (raw.replace(/^\\/+/, "").startsWith("uploads/")) return `${baseURL}/${raw.replace(/^\\/+/, "")}`;
+                  if (raw.replace(/^\/+/, "").startsWith("uploads/")) return `${apiBaseUrl}/${raw.replace(/^\/+/, "")}`;
                   return `${API_BASE}${raw.replace(/^\/+/, "")}`;
                 })()}
                 badge={game?.badge}
