@@ -217,20 +217,20 @@ const Home = () => {
             {visibleGames.map((game) => (
               <GameCard
                 key={game._id}
-                gameCardImg={(function() {
-                  const BASE = "https://apigames.oracleapi.net/api/";
-                  const projectDocs = game.projectImageDocs || [];
-                  const babuDoc = Array.isArray(projectDocs)
-                    ? projectDocs.find((d) => d?.projectName?.title === "Babu88")
-                    : null;
-                  const raw = babuDoc?.image  || "";
+                gameCardImg={(function () {
+                  const API_BASE = "https://apigames.oracleapi.net/api/";
+                  const projectDocs = Array.isArray(game.projectImageDocs) ? game.projectImageDocs : [];
+                  const preferredDoc = projectDocs.find((doc) => doc?.projectName?.title === "Babu88" && doc?.image)
+                    || projectDocs.find((doc) => doc?.image);
+                  const raw = preferredDoc?.image || game?.image || game?.thumbnail || game?.icon || "";
                   if (!raw) return "";
-                  const isAbs = /^https?:\/\//i.test(raw);
-                  return isAbs ? raw : `${BASE}${raw}`;
+                  if (/^https?:\/\//i.test(raw)) return raw;
+                  if (raw.startsWith("/uploads/")) return `${baseURL}${raw}`;
+                  return `${API_BASE}${raw.replace(/^\/+/, "")}`;
                 })()}
                 badge={game?.badge}
-                gameHeading={game?.title}
-                gameText={game?.category}
+                gameHeading={game?.title || game?.name || game?.gameName || "Game"}
+                gameText={typeof game?.category === "string" ? game.category : (game?.category?.name || game?.category?.title || game?.provider?.name || "Game")}
                 gameLink={game?.link ? game?.link : null}
                 demoId={game?._id}
                 hot={game?.hot}
