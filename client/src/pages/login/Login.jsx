@@ -34,31 +34,24 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    
-    const { data: loginData } = await loginUser(formData);
+    try {
+      const loginData = await loginUser({
+        username: formData.username.trim(),
+        password: formData.password,
+      }).unwrap();
 
-    // console.log("loginData ",loginData)
+      if (!loginData?.token) {
+        throw new Error("লগইন করা যায়নি। ব্যবহারকারীর নাম ও পাসওয়ার্ড যাচাই করুন।");
+      }
 
-    if(loginData === undefined){
-      addToast("Please check your username and password", {
-        appearance: "error",
-        autoDismiss: true,
-      });
-    }
-
-
-    if (loginData.token) {
-      const { data: userData } = await getUser(loginData.token);
+      const userData = await getUser(loginData.token).unwrap();
 
       if (userData?.role !== "user") {
         dispatch(logout());
         localStorage.removeItem("token");
-        addToast("Please check your username and password", {
-          appearance: "error",
-          autoDismiss: true,
-        });
-        return;
+        throw new Error("এই অ্যাকাউন্টটি গ্রাহক লগইনের জন্য নয়।");
       }
+
       dispatch(setCredentials({ token: loginData.token, user: userData }));
       addToast("Login successful", {
         appearance: "success",
@@ -66,15 +59,17 @@ const Login = () => {
       });
       setFormData({ username: "", password: "" });
       navigate("/profile/deposit");
-    //  // console.log("navigated");
-    } else {
-      addToast("Something went wrong", {
+    } catch (error) {
+      const message =
+        error?.data?.error ||
+        error?.data?.message ||
+        error?.message ||
+        "লগইন ব্যর্থ হয়েছে। আবার চেষ্টা করুন।";
+      addToast(message, {
         appearance: "error",
         autoDismiss: true,
       });
     }
-
-    // Here you can add your logic to handle the form submission, like sending the data to an API
   };
 
   return (
