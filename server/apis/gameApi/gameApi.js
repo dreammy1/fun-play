@@ -38,7 +38,7 @@ const gameApi = (
   //       {
   //         headers: {
   //           "x-api-key":
-  //             "b4fb7adb955b1078d8d38b54f5ad7be8ded17cfba85c37e4faa729ddd679d379",
+  //             (process.env.ORACLE_GAMES_API_KEY || process.env.GAME_API_KEY),
   //           "Content-Type": "application/json",
   //         },
   //       }
@@ -174,7 +174,7 @@ const gameApi = (
 
       console.log("categoryDocs:", categoryDocs);
 
-      if (!categoryDocs || !categoryDocs[0].provider) {
+      if (!categoryDocs?.length || !categoryDocs.some((doc) => doc.provider)) {
         return res
           .status(404)
           .json({ success: false, error: "Category or provider not found" });
@@ -190,7 +190,7 @@ const gameApi = (
         return axios.get(apiUrl, {
           headers: {
             "x-api-key":
-              "b4fb7adb955b1078d8d38b54f5ad7be8ded17cfba85c37e4faa729ddd679d379",
+              (process.env.ORACLE_GAMES_API_KEY || process.env.GAME_API_KEY),
           },
         });
       });
@@ -265,7 +265,7 @@ const gameApi = (
 
       // 2. Fetch the game from premium API by gameID
       const apiKey =
-        "b4fb7adb955b1078d8d38b54f5ad7be8ded17cfba85c37e4faa729ddd679d379"; // or your config
+        (process.env.ORACLE_GAMES_API_KEY || process.env.GAME_API_KEY); // or your config
       const response = await axios.get(
         `https://apigames.oracleapi.net/api/games/${localGame.gameID}`,
         { headers: { "x-api-key": apiKey } }
@@ -311,7 +311,7 @@ const gameApi = (
         return axios.get(apiUrl, {
           headers: {
             "x-api-key":
-              "b4fb7adb955b1078d8d38b54f5ad7be8ded17cfba85c37e4faa729ddd679d379",
+              (process.env.ORACLE_GAMES_API_KEY || process.env.GAME_API_KEY),
           },
         });
       });
@@ -376,7 +376,7 @@ const gameApi = (
         return axios.get(apiUrl, {
           headers: {
             "x-api-key":
-              "b4fb7adb955b1078d8d38b54f5ad7be8ded17cfba85c37e4faa729ddd679d379",
+              (process.env.ORACLE_GAMES_API_KEY || process.env.GAME_API_KEY),
           },
         });
       });
@@ -441,7 +441,7 @@ const gameApi = (
         return axios.get(apiUrl, {
           headers: {
             "x-api-key":
-              "b4fb7adb955b1078d8d38b54f5ad7be8ded17cfba85c37e4faa729ddd679d379",
+              (process.env.ORACLE_GAMES_API_KEY || process.env.GAME_API_KEY),
           },
         });
       });
@@ -506,7 +506,7 @@ const gameApi = (
         return axios.get(apiUrl, {
           headers: {
             "x-api-key":
-              "b4fb7adb955b1078d8d38b54f5ad7be8ded17cfba85c37e4faa729ddd679d379",
+              (process.env.ORACLE_GAMES_API_KEY || process.env.GAME_API_KEY),
           },
         });
       });
@@ -571,7 +571,7 @@ const gameApi = (
         return axios.get(apiUrl, {
           headers: {
             "x-api-key":
-              "b4fb7adb955b1078d8d38b54f5ad7be8ded17cfba85c37e4faa729ddd679d379",
+              (process.env.ORACLE_GAMES_API_KEY || process.env.GAME_API_KEY),
           },
         });
       });
@@ -637,7 +637,7 @@ const gameApi = (
         return axios.get(apiUrl, {
           headers: {
             "x-api-key":
-              "b4fb7adb955b1078d8d38b54f5ad7be8ded17cfba85c37e4faa729ddd679d379",
+              (process.env.ORACLE_GAMES_API_KEY || process.env.GAME_API_KEY),
           },
         });
       });
@@ -703,7 +703,7 @@ const gameApi = (
         return axios.get(apiUrl, {
           headers: {
             "x-api-key":
-              "b4fb7adb955b1078d8d38b54f5ad7be8ded17cfba85c37e4faa729ddd679d379",
+              (process.env.ORACLE_GAMES_API_KEY || process.env.GAME_API_KEY),
           },
         });
       });
@@ -841,7 +841,7 @@ const gameApi = (
       const apiRes = await axios.get(apiUrl, {
         headers: {
           "x-api-key":
-            "b4fb7adb955b1078d8d38b54f5ad7be8ded17cfba85c37e4faa729ddd679d379",
+            (process.env.ORACLE_GAMES_API_KEY || process.env.GAME_API_KEY),
         },
       });
 
