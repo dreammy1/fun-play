@@ -4,7 +4,9 @@ export const fetchThemeColors = createAsyncThunk(
   "themeColor/fetchThemeColors",
   async (_, { rejectWithValue }) => {
     try {
-      const baseURL = import.meta.env.VITE_BASE_API_URL || "http://localhost:5000";
+      const baseURL =
+        import.meta.env.VITE_BASE_API_URL ||
+        (typeof window !== "undefined" ? window.location.origin : "");
       const response = await fetch(`${baseURL}/theme-color`, {
         headers: {
           "Content-Type": "application/json",
@@ -159,4 +161,3 @@ export const {
   resetColors,
 } = themeColorSlice.actions;
 export default themeColorSlice.reducer;
-
