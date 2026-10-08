@@ -225,7 +225,7 @@ const Home = () => {
                   const raw = preferredDoc?.image || game?.image || game?.thumbnail || game?.icon || "";
                   if (!raw) return "";
                   if (/^https?:\/\//i.test(raw)) return raw;
-                  if (raw.startsWith("/uploads/")) return `${baseURL}${raw}`;
+                  if (raw.replace(/^\\/+/, "").startsWith("uploads/")) return `${baseURL}/${raw.replace(/^\\/+/, "")}`;
                   return `${API_BASE}${raw.replace(/^\/+/, "")}`;
                 })()}
                 badge={game?.badge}
