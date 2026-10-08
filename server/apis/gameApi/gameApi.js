@@ -63,51 +63,87 @@ const gameApi = (
   // });
   router.get("/merged", async (req, res) => {
     try {
-      // 1. Fetch all games from DB
+      const apiKey = process.env.ORACLE_GAMES_API_KEY || process.env.GAME_API_KEY;
       const dbGames = await gamesCollection.find().limit(200).toArray();
-      if (!dbGames.length) {
-        return res.json({ success: true, count: 0, data: [] });
+
+      // The provider catalogue is the source of truth for the public game list.
+      // Local MongoDB records only customize fields such as image/hot/new/lobby.
+      if (!apiKey) {
+        return res.status(503).json({
+          success: false,
+          error: "Game provider API key is not configured on the server.",
+        });
       }
 
-      console.log("dbGames:", dbGames);
+      let premiumData = [];
 
-      // 2. Collect all gameIDs
-      const gameIDs = dbGames.map((g) => g.gameID).filter(Boolean);
-      if (!gameIDs.length) {
-        return res.json({ success: true, count: 0, data: [] });
-      }
-      // 3. POST to premium API to get full game data
-      const apiRes = await axios.post(
-        "https://apigames.oracleapi.net/api/games/by-ids",
-        { ids: gameIDs },
-        {
-          headers: {
-            "x-api-key":
-              "b4fb7adb955b1078d8d38b54f5ad7be8ded17cfba85c37e4faa729ddd679d379",
-            "Content-Type": "application/json",
-          },
+      if (dbGames.length) {
+        const gameIDs = dbGames.map((game) => game.gameID).filter(Boolean);
+        if (gameIDs.length) {
+          const apiRes = await axios.post(
+            "https://apigames.oracleapi.net/api/games/by-ids",
+            { ids: gameIDs },
+            {
+              headers: {
+                "x-api-key": apiKey,
+                "Content-Type": "application/json",
+              },
+              timeout: 20000,
+            }
+          );
+          premiumData = Array.isArray(apiRes.data?.data) ? apiRes.data.data : [];
         }
+      }
+
+      // If no local game IDs exist, fetch the provider catalogue directly.
+      // The provider parameter is intentionally omitted to request all available games.
+      if (!premiumData.length) {
+        const apiRes = await axios.get(
+          "https://apigames.oracleapi.net/api/games/pagination?page=1&limit=1000",
+          {
+            headers: { "x-api-key": apiKey },
+            timeout: 25000,
+          }
+        );
+        const payload = apiRes.data;
+        premiumData = Array.isArray(payload)
+          ? payload
+          : Array.isArray(payload?.data)
+            ? payload.data
+            : Array.isArray(payload?.data?.data)
+              ? payload.data.data
+              : Array.isArray(payload?.games)
+                ? payload.games
+                : [];
+      }
+
+      const localByGameId = new Map(
+        dbGames.filter((game) => game.gameID).map((game) => [String(game.gameID), game])
       );
-      const premiumData =
-        apiRes.data && Array.isArray(apiRes.data.data)
-          ? apiRes.data.data.slice(0, 300)
-          : [];
-      // 4. Merge premium data with DB fields (image/hot/new)
-      const merged = premiumData.map((premiumGame) => {
-        const dbGame = dbGames.find((g) => g.gameID === premiumGame._id);
-        return {
-          ...premiumGame,
-          image: dbGame?.image || premiumGame.image,
-          hot: dbGame?.hot || false,
-          new: dbGame?.new || false,
-          lobby: dbGame?.lobby || false,
-          selected: dbGame?.selected || false,
-        };
-      });
-      res.json({ success: true, count: merged.length, data: merged });
+      const merged = premiumData
+        .filter((game) => game && (game._id || game.gameID || game.id))
+        .map((premiumGame) => {
+          const id = String(premiumGame._id || premiumGame.gameID || premiumGame.id);
+          const localGame = localByGameId.get(id);
+          return {
+            ...premiumGame,
+            image: localGame?.image || premiumGame.image,
+            hot: localGame?.hot ?? false,
+            new: localGame?.new ?? false,
+            // Admin can explicitly hide a game by setting lobby=false.
+            // Provider catalogue games without a local record remain visible.
+            lobby: localGame?.lobby ?? true,
+            selected: localGame?.selected ?? false,
+          };
+        });
+
+      return res.json({ success: true, count: merged.length, data: merged });
     } catch (err) {
-      console.error("Error in /games/merged", err.message);
-      res.status(500).json({ success: false, error: "Failed to merge games" });
+      console.error("Error in /games/merged:", err.response?.status || "", err.message);
+      return res.status(502).json({
+        success: false,
+        error: "Failed to fetch the game catalogue from the provider.",
+      });
     }
   });
 
