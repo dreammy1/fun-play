@@ -36,7 +36,7 @@ const Login = () => {
 
     try {
       const loginData = await loginUser({
-        username: formData.username.trim(),
+        username: formData.username,
         password: formData.password,
       }).unwrap();
 

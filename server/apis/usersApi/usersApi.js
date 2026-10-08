@@ -182,7 +182,10 @@ const usersApi = (
 
   // Register a new user (with welcome bonus if active)
   router.post("/register", async (req, res) => {
-    const userInfo = req.body;
+    const userInfo = { ...req.body };
+    if (typeof userInfo.username === "string") {
+      userInfo.username = userInfo.username.trim();
+    }
     if (!userInfo?.username || !userInfo?.password) {
       return res
         .status(400)
@@ -283,7 +286,9 @@ const usersApi = (
 
   // Login a user and validate JWT issuance
   router.post("/login", async (req, res) => {
-    const { username, password } = req.body;
+    const rawUsername = String(req.body?.username ?? "");
+    const username = rawUsername.trim();
+    const password = req.body?.password;
     if (!username || !password) {
       return res
         .status(400)
@@ -291,7 +296,10 @@ const usersApi = (
     }
 
     try {
-      const user = await usersCollection.findOne({ username });
+      const user =
+        (rawUsername !== username &&
+          (await usersCollection.findOne({ username: rawUsername }))) ||
+        (await usersCollection.findOne({ username }));
       if (!user) return res.status(400).json({ error: "Invalid credentials" });
 
       const isMatch = await bcrypt.compare(password, user.password);
@@ -306,7 +314,7 @@ const usersApi = (
       );
 
       await usersCollection.updateOne(
-        { username },
+        { _id: user._id },
         { $set: { lastLoginAt: new Date() } },
         { upsert: true }
       );

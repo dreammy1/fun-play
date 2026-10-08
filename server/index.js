@@ -403,6 +403,32 @@ app.get(["/admin", "/dashboard", "/dashboard/*"], (req, res) => {
   res.status(503).send("Admin UI is not built");
 });
 
+// Serve the customer SPA for direct visits and refreshes of React Router pages.
+// Keep API, upload, and static-asset paths out of the fallback so their 404s stay useful.
+const nonSpaPrefixes = [
+  "/users", "/games", "/categories", "/deposits", "/withdraws",
+  "/home-controls", "/promotions", "/kyc", "/pages", "/paymentnumber",
+  "/paymentmethod", "/admin", "/depositPaymentMethod", "/depositPromotions",
+  "/depositTransactions", "/withdrawPaymentMethod", "/withdrawTransactions",
+  "/features-image", "/theme-color", "/social-links", "/opay", "/upload",
+  "/delete", "/uploads", "/assets", "/health", "/loader-config",
+];
+
+app.get("*", (req, res, next) => {
+  if (
+    nonSpaPrefixes.some(
+      (prefix) => req.path === prefix || req.path.startsWith(`${prefix}/`)
+    ) ||
+    !req.accepts("html")
+  ) {
+    return next();
+  }
+
+  const indexPath = path.join(clientDist, "index.html");
+  if (fs.existsSync(indexPath)) return res.sendFile(indexPath);
+  return next();
+});
+
 app.listen(port, () => {
   console.log(`Server is running on PORT: ${port}`);
 });
