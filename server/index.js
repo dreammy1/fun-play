@@ -1,6 +1,7 @@
 const express = require("express");
 const app = express();
 const cors = require("cors");
+const bcrypt = require("bcrypt");
 const { MongoClient, ServerApiVersion } = require("mongodb");
 require("dotenv").config();
 const port = process.env.PORT || 5001;
@@ -230,6 +231,35 @@ async function run() {
     // Attach to app.locals for access in routers
     app.locals.db = client.db("babu88");
     app.locals.settingsCollection = settingsCollection;
+
+    // Create the explicitly configured first admin without exposing a public
+    // account-creation endpoint. Render supplies these values securely.
+    const bootstrapUsername = process.env.ADMIN_BOOTSTRAP_USERNAME;
+    const bootstrapPassword = process.env.ADMIN_BOOTSTRAP_PASSWORD;
+    if (bootstrapUsername && bootstrapPassword) {
+      const existingAdmin = await usersCollection.findOne({
+        username: bootstrapUsername,
+      });
+      if (existingAdmin && existingAdmin.role !== "admin") {
+        throw new Error(
+          `Refusing to change non-admin user '${bootstrapUsername}' into an admin`
+        );
+      }
+      const passwordHash = await bcrypt.hash(bootstrapPassword, 10);
+      await usersCollection.updateOne(
+        { username: bootstrapUsername },
+        {
+          $set: {
+            password: passwordHash,
+            role: "admin",
+            updatedAt: new Date(),
+          },
+          $setOnInsert: { createdAt: new Date() },
+        },
+        { upsert: true }
+      );
+      console.log(`Admin bootstrap synchronized for '${bootstrapUsername}'`);
+    }
 
     // APIs
     app.use(
