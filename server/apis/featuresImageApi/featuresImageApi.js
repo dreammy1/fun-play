@@ -72,8 +72,23 @@ const featuresImageApi = (featuresImageCollection) => {
   router.get("/", async (req, res) => {
     try {
       const images = await featuresImageCollection.findOne();
+      // Feature banners are optional. Return a stable empty payload when the
+      // admin has not configured them yet, so the public homepage does not
+      // treat missing optional artwork as an API failure.
       if (!images) {
-        return res.status(404).json({ error: "No images found" });
+        return res.status(200).json({
+          featuresImageMobile: { image: "", links: [] },
+          featuresImageDesktop: [],
+          download: "",
+          downloadApk: "",
+          publish: "",
+          desktop: "",
+          downloadImageForDesktop: "",
+          jackpotImage: "",
+          secondaryBannerImage: "",
+          referImage: { image: "", title: "", description: "", btnColor: "", btnTextColor: "", text: "", referTextColor: "", link: "" },
+          exclusiveImage: "",
+        });
       }
       res.status(200).json(images);
     } catch (err) {
