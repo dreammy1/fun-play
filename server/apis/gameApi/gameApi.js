@@ -149,93 +149,65 @@ const gameApi = (
 
   // Get games by category value (for category filter)
   router.get("/by-category/:categoryValue", async (req, res) => {
-    const { categoryValue } = req.params;
-
-    console.log("categoryValue:", categoryValue);
-
+    const categoryValue = String(req.params.categoryValue || "").trim().toLowerCase();
+    const apiKey = process.env.ORACLE_GAMES_API_KEY || process.env.GAME_API_KEY;
     try {
-      // 1. Find the category in the categories collection
+      if (!apiKey) return res.status(503).json({ success: false, error: "Game provider API key is not configured." });
 
-      let categoryDocs = null;
-      if (categoriesCollection) {
-        categoryDocs = await categoriesCollection
-          .find({
-            category: categoryValue,
+      const dbGames = await gamesCollection.find().limit(500).toArray();
+      const categoryDocs = categoriesCollection ? await categoriesCollection.find({}).toArray() : [];
+      const providerIds = [...new Set(categoryDocs
+        .filter((doc) => String(doc.category || "").trim().toLowerCase() === categoryValue && doc.provider)
+        .map((doc) => String(doc.provider)))];
+
+      let premiumGames = [];
+      if (providerIds.length) {
+        const responses = await Promise.all(providerIds.map((providerId) =>
+          axios.get("https://apigames.oracleapi.net/api/games/pagination?page=1&limit=1000&provider=" + encodeURIComponent(providerId), {
+            headers: { "x-api-key": apiKey }, timeout: 25000,
           })
-          .toArray();
-      } else {
-        // fallback: try to get from gamesCollection if categoriesCollection not available
-        categoryDocs = await gamesCollection
-          .find({
-            category: categoryValue,
-          })
-          .toArray();
-      }
-
-      console.log("categoryDocs:", categoryDocs);
-
-      if (!categoryDocs?.length || !categoryDocs.some((doc) => doc.provider)) {
-        return res
-          .status(404)
-          .json({ success: false, error: "Category or provider not found" });
-      }
-
-      const providerIds = categoryDocs
-        .map((doc) => doc.provider)
-        .filter(Boolean);
-
-      // 2. Fetch all games for these providers from premium API
-      const apiResPromises = providerIds.map((providerId) => {
-        const apiUrl = `https://apigames.oracleapi.net/api/games/pagination?page=1&limit=1000&provider=${providerId}`;
-        return axios.get(apiUrl, {
-          headers: {
-            "x-api-key":
-              (process.env.ORACLE_GAMES_API_KEY || process.env.GAME_API_KEY),
-          },
+        ));
+        premiumGames = responses.flatMap((response) => {
+          const payload = response.data;
+          if (Array.isArray(payload?.data)) return payload.data;
+          if (Array.isArray(payload?.data?.data)) return payload.data.data;
+          if (Array.isArray(payload?.games)) return payload.games;
+          return [];
         });
-      });
-
-      const apiRes = await Promise.all(apiResPromises);
-      const premiumGames = apiRes
-        .map((res) => res.data.data)
-        .flat()
-        .filter(Boolean);
-
-      if (!premiumGames.length) {
-        return res.json({ success: true, count: 0, data: [] });
+      } else {
+        // Missing admin category configuration must not make every category page empty.
+        const response = await axios.get("https://apigames.oracleapi.net/api/games/pagination?page=1&limit=1000", {
+          headers: { "x-api-key": apiKey }, timeout: 25000,
+        });
+        const payload = response.data;
+        const catalogue = Array.isArray(payload) ? payload
+          : Array.isArray(payload?.data) ? payload.data
+          : Array.isArray(payload?.data?.data) ? payload.data.data
+          : Array.isArray(payload?.games) ? payload.games : [];
+        const aliases = {
+          slot: ["slot", "slots"], casino: ["casino", "live casino"],
+          table: ["table"], fishing: ["fish", "fishing"], crash: ["crash"],
+          cricket: ["cricket", "sport", "sports"], sports: ["sport", "sports", "cricket"],
+          sb: ["sport", "sports"], jackpot: ["jackpot"], hot: ["hot"],
+        };
+        const terms = aliases[categoryValue] || [categoryValue];
+        premiumGames = catalogue.filter((game) => {
+          const category = typeof game.category === "string" ? game.category : (game.category?.name || game.category?.title || "");
+          const provider = typeof game.provider === "string" ? game.provider : (game.provider?.name || "");
+          const searchable = (category + " " + provider + " " + (game.name || game.title || "")).toLowerCase();
+          return terms.some((term) => searchable.includes(term));
+        });
       }
 
-      // 3. Get all local DB games (gameID)
-      const dbGames = await gamesCollection.find({}).toArray();
-      const dbGameIDs = dbGames.map((g) => g.gameID);
-
-      // 4. Filter premium games to only those that exist in local DB
-      const filteredGames = premiumGames.filter((g) =>
-        dbGameIDs.includes(g._id)
-      );
-
-      // 5. Merge DB fields (image/hot/new) into premium games
-      const mergedGames = filteredGames.map((premiumGame) => {
-        const dbGame = dbGames.find((g) => g.gameID === premiumGame._id);
-        return {
-          ...premiumGame,
-          image: dbGame?.image || premiumGame.image,
-          hot: dbGame?.hot || false,
-          new: dbGame?.new || false,
-          lobby : dbGame?.lobby || false,
-        };
+      const localById = new Map(dbGames.filter((game) => game.gameID).map((game) => [String(game.gameID), game]));
+      const data = premiumGames.filter((game) => game && (game._id || game.gameID || game.id)).map((game) => {
+        const local = localById.get(String(game._id || game.gameID || game.id));
+        return { ...game, image: local?.image || game.image, hot: local?.hot ?? false, new: local?.new ?? false, lobby: local?.lobby ?? true, selected: local?.selected ?? false };
       });
-
-      res.json({
-        success: true,
-        count: mergedGames.length,
-        data: mergedGames,
-      });
+      return res.json({ success: true, count: data.length, data });
     } catch (err) {
-      console.error("Error in /games/by-category/:categoryValue", err.message);
-      res
-        .status(500)
-        .json({ success: false, error: "Failed to fetch games by category" });
+      console.error("Error in /games/by-category:", categoryValue, err.response?.status || "", err.message);
+      return res.status(502).json({ success: false, error: "Failed to fetch games for this category." });
     }
   });
 
