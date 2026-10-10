@@ -132,103 +132,16 @@ module.exports = function opayApi(settingsCollection) {
   // Callback deposit webhook: save payload and credit user balance if success === true
   // Endpoint: POST /opay/callback-deposit
   // Body example documented in server/callback-webhook.md
-  router.post("/callback-deposit", async (req, res) => {
-    try {
-      const db = req.app.locals?.db;
-      if (!db) {
-        return res.status(500).json({ success: false, message: "Database not initialized" });
-      }
-
-      const payload = req.body || {};
-      const {
-        success,
-        userIdentifyAddress,
-        amount,
-        trxid,
-      } = payload;
-
-      // Collections
-      const opayDepositCol = db.collection("Opay-deposit");
-      const usersCol = db.collection("users");
-
-      // Ensure unique index on trxid to avoid duplicates
-      try {
-        await opayDepositCol.createIndex({ trxid: 1 }, { unique: true, sparse: true });
-      } catch (e) {
-        // ignore if already exists or cannot be created right now
-      }
-
-      // Normalize amount
-      const amountNum = typeof amount === "number" ? amount : Number(amount);
-
-      // Save incoming payload first (idempotent on trxid)
-      const baseDoc = {
-        ...payload,
-        receivedAt: new Date(),
-        applied: false,
-      };
-
-      let insertedId = null;
-      try {
-        const insertResult = await opayDepositCol.insertOne(baseDoc);
-        insertedId = insertResult.insertedId;
-      } catch (err) {
-        // Duplicate trxid (already processed/recorded)
-        if (err && err.code === 11000) {
-          // Already recorded; do not apply again
-          const existing = await opayDepositCol.findOne({ trxid });
-          return res.status(200).json({
-            success: true,
-            message: "Already recorded",
-            applied: !!existing?.applied,
-          });
-        }
-        // Any other error
-        return res.status(500).json({ success: false, message: "Failed to record payload", error: err.message });
-      }
-
-      // Only apply balance if marked success and required fields are valid
-      if (success === true && trxid && userIdentifyAddress && Number.isFinite(amountNum) && amountNum > 0) {
-        const user = await usersCol.findOne({ username: userIdentifyAddress });
-        if (!user) {
-          // Update the record to indicate not applied due to missing user
-          await opayDepositCol.updateOne(
-            { _id: insertedId },
-            { $set: { applied: false, reason: "USER_NOT_FOUND", checkedAt: new Date() } }
-          );
-          return res.status(404).json({ success: false, message: "User not found", username: userIdentifyAddress });
-        }
-
-        // Credit user's balance
-        await usersCol.updateOne({ _id: user._id }, { $inc: { balance: amountNum } });
-
-        // Mark this deposit as applied
-        await opayDepositCol.updateOne(
-          { _id: insertedId },
-          {
-            $set: {
-              applied: true,
-              appliedAt: new Date(),
-              username: user.username,
-              userId: user._id,
-              amount: amountNum,
-            },
-          }
-        );
-
-        // Respond success
-        return res.status(200).json({ success: true, applied: true, username: user.username, amount: amountNum });
-      }
-
-      // If not success or invalid payload, keep record but don't apply
-      await opayDepositCol.updateOne(
-        { _id: insertedId },
-        { $set: { applied: false, reason: "NOT_APPLIED", checkedAt: new Date() } }
-      );
-      return res.status(200).json({ success: true, applied: false, message: "Recorded but not applied" });
-    } catch (err) {
-      return res.status(500).json({ success: false, message: err.message || "Server error" });
-    }
+  router.post("/callback-deposit", async (_req, res) => {
+    // This legacy callback trusts a third-party JSON payload and is not a Stripe-signed
+    // webhook. It must never credit the wallet. Retain the path temporarily so callers
+    // receive an explicit response while the legacy payment flow is retired.
+    return res.status(410).json({
+      success: false,
+      applied: false,
+      reason: "LEGACY_PAYMENT_CALLBACK_DISABLED",
+      message: "This payment callback is disabled. Use the configured Stripe webhook integration.",
+    });
   });
 
   // List Opay deposits (global or by user) with filters + pagination
