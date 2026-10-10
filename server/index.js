@@ -31,6 +31,7 @@ const adminDashboardApi = require("./apis/adminDashboardApi/adminDashboardApi");
 const featuresImageApi = require("./apis/featuresImageApi/featuresImageApi");
 const themeColorApi = require("./apis/themeColorApi/themeColorApi");
 const opayApi = require("./apis/opayApi/opayApi");
+const stripeWebhookApi = require("./apis/stripeWebhookApi/stripeWebhookApi");
 const socialLinksApi = require("./apis/socialLinksApi/socialLinksApi");
 
 const fs = require("fs");
@@ -132,6 +133,8 @@ const corsConfig = {
 // Middlewares
 app.use(cors(corsConfig));
 app.options("", cors(corsConfig));
+// Stripe needs the exact raw request body for signature verification; mount before JSON parsing.
+app.use("/stripe/webhook", stripeWebhookApi());
 app.use(express.json());
 // Parse FormData
 app.use(express.urlencoded({ extended: true }));
