@@ -25,6 +25,9 @@ const usersApi = (
 
   // Middleware to validate JWT tokens
   const authenticateToken = (req, res, next) => {
+    if (!jwtSecret) {
+      return res.status(503).json({ error: "Authentication is not configured." });
+    }
     const authHeader = req.header("Authorization");
     if (!authHeader)
       return res
@@ -46,10 +49,33 @@ const usersApi = (
     }
   };
 
-  // Redeem refer wallet: merge referWallet into balance if above minWithdraw
+  // Resolve admin privileges from the database; JWT role claims alone are not trusted.
+  const authenticateAdmin = async (req, res, next) => {
+    try {
+      if (!req.user?.userId || !ObjectId.isValid(String(req.user.userId))) {
+        return res.status(401).json({ error: "Invalid authenticated user." });
+      }
+      const currentUser = await usersCollection.findOne(
+        { _id: new ObjectId(String(req.user.userId)) },
+        { projection: { role: 1, status: 1 } }
+      );
+      if (!currentUser || currentUser.role !== "admin") {
+        return res.status(403).json({ error: "Administrator access required." });
+      }
+      req.currentUser = currentUser;
+      return next();
+    } catch (error) {
+      return res.status(500).json({ error: "Authorization check failed." });
+    }
+  };
+
+  // Redeem only the authenticated user's referral wallet.
   router.post("/redeem-refer-wallet", authenticateToken, async (req, res) => {
     try {
-      const userId = req.body.userId;
+      const userId = String(req.user.userId);
+      if (!ObjectId.isValid(userId)) {
+        return res.status(401).json({ success: false, message: "Invalid authenticated user" });
+      }
       const user = await usersCollection.findOne({ _id: new ObjectId(userId) });
       if (!user) {
         return res
@@ -90,7 +116,7 @@ const usersApi = (
 
   // Admin: Set or update welcome bonus (amount, active)
   // Admin: Set or update refer bonus (amount, active)
-  router.post("/admin/set-refer-bonus", async (req, res) => {
+  router.post("/admin/set-refer-bonus", authenticateToken, authenticateAdmin, async (req, res) => {
     const { amount, active, minWithdraw } = req.body;
     if (typeof amount !== "number" || amount <= 0) {
       return res
@@ -142,7 +168,7 @@ const usersApi = (
     res.json({ success: true, user });
   });
 
-  router.post("/admin/set-welcome-bonus", async (req, res) => {
+  router.post("/admin/set-welcome-bonus", authenticateToken, authenticateAdmin, async (req, res) => {
     const { amount, active } = req.body;
     if (typeof amount !== "number" || amount <= 0) {
       return res
@@ -399,7 +425,7 @@ const usersApi = (
     }
   });
 
-  router.get("/", async (req, res) => {
+  router.get("/", authenticateToken, authenticateAdmin, async (req, res) => {
     try {
       const result = await usersCollection
         .find({}, { projection: { password: 0 } })
@@ -411,9 +437,9 @@ const usersApi = (
   });
 
   // ? get the user balance
-  router.post("/get-user-balance", async (req, res) => {
+  router.post("/get-user-balance", authenticateToken, async (req, res) => {
     try {
-      const { user_id } = req.body;
+      const user_id = String(req.user.userId);
 
       if (!user_id || !ObjectId.isValid(user_id)) {
         return res
@@ -450,9 +476,9 @@ const usersApi = (
   });
 
   // Get user game history with game information, sorted by latest playedAt
-  router.post("/get-user-game-history", async (req, res) => {
+  router.post("/get-user-game-history", authenticateToken, async (req, res) => {
     try {
-      const { user_id } = req.body;
+      const user_id = String(req.user.userId);
 
       // Validate user_id
       if (!user_id || !ObjectId.isValid(user_id)) {
@@ -531,7 +557,7 @@ const usersApi = (
   });
 
   // Get all users' game history with game information, sorted by latest playedAt
-  router.get("/get-all-users-game-history", async (req, res) => {
+  router.get("/get-all-users-game-history", authenticateToken, authenticateAdmin, async (req, res) => {
     try {
       // Fetch all users with game history
       const users = await usersCollection
@@ -611,7 +637,7 @@ const usersApi = (
   });
 
   // get all agents
-  router.get("/agent", async (req, res) => {
+  router.get("/agent", authenticateToken, authenticateAdmin, async (req, res) => {
     try {
       const result = await usersCollection
         .find({ role: "agent" }, { projection: { password: 0 } })
@@ -624,7 +650,7 @@ const usersApi = (
   });
 
   // update status of an agent
-  router.put("/updateagentstatus/:id", authenticateToken, async (req, res) => {
+  router.put("/updateagentstatus/:id", authenticateToken, authenticateAdmin, async (req, res) => {
     const { id } = req.params; // User ID from the URL parameter
 
     if (!ObjectId.isValid(id)) {
@@ -726,7 +752,7 @@ const usersApi = (
   });
 
   // get a user by ID
-  router.get("/single-user/:id", async (req, res) => {
+  router.get("/single-user/:id", authenticateToken, authenticateAdmin, async (req, res) => {
     const { id } = req?.params;
 
     if (!ObjectId.isValid(id)) {
@@ -865,7 +891,7 @@ const usersApi = (
   });
 
   // Admin can log in as any agent using their username
-  router.post("/admin/login-as-agent", async (req, res) => {
+  router.post("/admin/login-as-agent", authenticateToken, authenticateAdmin, async (req, res) => {
     try {
       const { username } = req.body;
       if (!username) {
@@ -903,7 +929,7 @@ const usersApi = (
   });
 
   // GET /users - Fetch all users (for admin)
-  router.get("/admin/get-users", async (req, res) => {
+  router.get("/admin/get-users", authenticateToken, authenticateAdmin, async (req, res) => {
     try {
       const users = await usersCollection.find().toArray();
       // Remove password field for security
@@ -919,7 +945,7 @@ const usersApi = (
   });
 
   // Update user information by ID
-  router.put("/admin/update-user/:id", async (req, res) => {
+  router.put("/admin/update-user/:id", authenticateToken, authenticateAdmin, async (req, res) => {
     const { id } = req.params;
     let updateData = req.body;
     // Convert balance to integer if provided
@@ -1026,7 +1052,7 @@ const usersApi = (
     }
   });
 
-  router.get("/admin/profile/:id", async (req, res) => {
+  router.get("/admin/profile/:id", authenticateToken, authenticateAdmin, async (req, res) => {
     const { id } = req.params;
     try {
       if (!ObjectId.isValid(id)) {
@@ -1050,7 +1076,7 @@ const usersApi = (
     }
   });
 
-  router.put("/admin/update-profile/:id", async (req, res) => {
+  router.put("/admin/update-profile/:id", authenticateToken, authenticateAdmin, async (req, res) => {
     const { id } = req.params;
     const updateData = req.body;
 
