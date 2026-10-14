@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 
 const WelcomeBonus = () => {
   const [amount, setAmount] = useState(0);
@@ -12,7 +12,7 @@ const WelcomeBonus = () => {
     const fetchConfig = async () => {
       try {
         const res = await fetch(
-          `${import.meta.env.VITE_BASE_API_URL}/users/public/welcome-bonus`
+          `${import.meta.env.VITE_BASE_API_URL}/users/admin/welcome-bonus`
         );
         const data = await res.json();
         if (data.success && data.bonus) {
@@ -48,7 +48,7 @@ const WelcomeBonus = () => {
       } else {
         setMessage(data.message || "Failed to update bonus.");
       }
-    } catch (err) {
+    } catch {
       setMessage("Server error. Try again.");
     } finally {
       setLoading(false);
