@@ -127,6 +127,7 @@ const DemoGame = () => {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               gameID: gameUUID,
+              oracleGameId: id,
               // The Betnex test environment uses its configured sandbox user
               // and rejects balance passing; keep this explicitly zero.
               money: 0,

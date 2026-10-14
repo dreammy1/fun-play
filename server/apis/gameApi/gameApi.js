@@ -13,6 +13,52 @@ const gameApi = (
   matchesCollection
 ) => {
   const router = express.Router();
+  const betnexHost =
+    "live-casino-slots-evolution-jili-and-50-plus-provider.p.rapidapi.com";
+  const betnexProviderCache = new Map();
+
+  const normalizeGameName = (value) =>
+    String(value || "")
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "");
+
+  const getBetnexGamesForProvider = async (providerName, apiKey) => {
+    const providerCode = normalizeGameName(providerName).toUpperCase();
+    if (!providerCode) return [];
+    const cached = betnexProviderCache.get(providerCode);
+    if (cached && cached.expiresAt > Date.now()) return cached.games;
+
+    const response = await axios.get(
+      `https://${betnexHost}/casino/getallgamesandprovider`,
+      {
+        params: { provider: providerCode },
+        headers: { "x-rapidapi-key": apiKey, "x-rapidapi-host": betnexHost },
+        timeout: 20000,
+      }
+    );
+    const games = Array.isArray(response.data?.games)
+      ? response.data.games
+      : [];
+    betnexProviderCache.set(providerCode, {
+      games,
+      expiresAt: Date.now() + 10 * 60 * 1000,
+    });
+    return games;
+  };
+
+  const resolveBetnexGame = async (oracleGame, apiKey) => {
+    const oracleName = oracleGame?.name || oracleGame?.title;
+    const oracleProvider =
+      typeof oracleGame?.provider === "string"
+        ? oracleGame.provider
+        : oracleGame?.provider?.name;
+    const games = await getBetnexGamesForProvider(oracleProvider, apiKey);
+    return games.find(
+      (game) => normalizeGameName(game.name) === normalizeGameName(oracleName)
+    );
+  };
 
   // Get all games from DB, enrich with premium API, and return merged data
   // router.get("/merged", async (req, res) => {
@@ -1032,7 +1078,12 @@ const gameApi = (
       const requestedGameId = String(
         req.body?.gameID || req.body?.gameId || ""
       ).trim();
-      if (!requestedGameId || requestedGameId.length > 200) {
+      const oracleGameId = String(req.body?.oracleGameId || "").trim();
+      if (
+        (!requestedGameId && !oracleGameId) ||
+        requestedGameId.length > 200 ||
+        oracleGameId.length > 200
+      ) {
         return res.status(400).json({
           error: "A valid provider game ID is required.",
         });
@@ -1045,18 +1096,44 @@ const gameApi = (
         });
       }
 
+      let betnexGameId = requestedGameId;
+      if (oracleGameId) {
+        const oracleApiKey =
+          process.env.ORACLE_GAMES_API_KEY || process.env.GAME_API_KEY;
+        if (!oracleApiKey) {
+          return res.status(503).json({
+            error: "Oracle game catalogue API key is not configured on the server.",
+          });
+        }
+
+        const oracleResponse = await axios.get(
+          `https://apigames.oracleapi.net/api/games/${encodeURIComponent(oracleGameId)}`,
+          { headers: { "x-api-key": oracleApiKey }, timeout: 15000 }
+        );
+        const oracleGame =
+          oracleResponse.data?.data?.data ||
+          oracleResponse.data?.data ||
+          oracleResponse.data;
+        const betnexGame = await resolveBetnexGame(oracleGame, apiKey);
+        if (!betnexGame?.id) {
+          return res.status(422).json({
+            error: "This game has no matching Betnex catalogue ID.",
+            gameName: oracleGame?.name || oracleGame?.title || null,
+          });
+        }
+        betnexGameId = String(betnexGame.id);
+      }
+
       const postData = {
         // Use the supplied sandbox identity unless the server is configured otherwise.
         username: process.env.BETNEX_USERNAME || "testus3r4er01",
-        // The Oracle game_uuid is forwarded as Betnex gameId. No global fallback
-        // is allowed because it would launch the wrong game for other cards.
-        gameId: requestedGameId,
+        gameId: betnexGameId,
         lang: "en",
         // The provider explicitly disallows balance passing in its test environment.
         money: 0,
         home_url: "https://betnex.co",
         platform: 1,
-        currency: "INR",
+        currency: "BDT",
         notice:
           "Balance pass via the 'money' parameter is not allowed in the test environment. Please contact the Betnex team via https://www.betnex.co for production details and access.",
       };
@@ -1076,6 +1153,14 @@ const gameApi = (
           timeout: 30000,
         }
       );
+
+      if (response.data?.code && Number(response.data.code) !== 0) {
+        return res.status(502).json({
+          error: "Betnex rejected this game launch.",
+          details: response.data.msg || "Unknown Betnex provider error.",
+          providerCode: response.data.code,
+        });
+      }
 
       res.status(200).json({
         message: "Game link request successful",
