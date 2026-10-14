@@ -2,7 +2,6 @@
 const express = require("express");
 const { ObjectId } = require("mongodb");
 const { default: axios } = require("axios");
-const qs = require("qs");
 const path = require("path");
 const fs = require("fs");
 
@@ -1027,149 +1026,59 @@ const gameApi = (
     res.send(result);
   });
 
-  // ?  get the game  old code
+  // Get a game launch URL from the Betnex RapidAPI provider.
   router.post("/getGameLink", async (req, res) => {
     try {
-      const { username, money, gameID } = req.body;
+      const apiKey = process.env.RAPIDAPI_KEY;
+      if (!apiKey) {
+        return res.status(503).json({
+          error: "Game provider API key is not configured on the server.",
+        });
+      }
 
-      console.log("this is body ", req.body);
-
-      // ? for game bajibos.com
       const postData = {
-        home_url: "https://bajibos.com",
-        token: "62dd4c99767302be8969ffcf7bc8e4c2",
-        username: username + "45",
-        money: money,
-        gameid: req.body.gameID,
+        // Use the supplied sandbox identity unless the server is configured otherwise.
+        username: process.env.BETNEX_USERNAME || "testus3r4er01",
+        gameId: process.env.BETNEX_GAME_ID || "874c49d5d915de9b82f66088f9794789",
+        lang: "en",
+        // The provider explicitly disallows balance passing in its test environment.
+        money: 0,
+        home_url: "https://betnex.co",
+        platform: 1,
+        currency: "INR",
+        notice:
+          "Balance pass via the 'money' parameter is not allowed in the test environment. Please contact the Betnex team via https://www.betnex.co for production details and access.",
       };
 
-      // ? for game baji
-      // const postData = {
-      //   home_url: "https://gamebaji71.com",
-      //   token: "99a6ebbc83c0e30c9a0c5237f3d907bd",
-      //   username: username + "45",
-      //   money: money,
-      //   gameid: req.body.gameID,
-      // };
-
-      // ? for trickboy.xyz
-      // const postData = {
-      //   home_url: "https://trickboy.xyz",
-      //   token: "bf5891d45c356824ba6df15c9c15575d",
-      //   username: username + "45",
-      //   money: money,
-      //   gameid: req.body.gameID,
-      // };
-
-      // // ? for game baji444
-      // const postData = {
-      //   home_url: "https://baji444.online",
-      //   token: "a19a058e5c9ee29a23c1300866271928",
-      //   username: username + "45",
-      //   money: money,
-      //   gameid: req.body.gameID,
-      // };
-
-
-      // ? for game api.babu88.oracelsoft.com
-      // const postData = {
-      //   home_url: "https://api.babu88.oracelsoft.com",
-      //   token: "c28152300c17a19d9e6e7eaeb2950ae6",
-      //   username: username + "45",
-      //   money: money,
-      //   gameid: req.body.gameID,
-      // };
-
-      // ? for trickboy.xyz
-      // const postData = {
-      //   home_url: "https://trickboy.xyz",
-      //   token: "bf5891d45c356824ba6df15c9c15575d",
-      //   username: username+"45",
-      //   money: money,
-      //   gameid: req.body.gameID
-      // };
-
-      // ? for melbet99
-      // const postData = {
-      //   home_url: "https://melbet99.com",
-      //   token: "ab315e58c891ce8f875652af5d4e45c1",
-      //   username: username+"45",
-      //   money: money,
-      //   gameid: req.body.gameID
-      // };
-
-      // ? for  lclb.net
-      // const postData = {
-      //   home_url: "https://lclb.net",
-      //   token: "b18e2542823e4df498ce17e8eb2d1c49",
-      //   username: username+"45",
-      //   money: money,
-      //   gameid: req.body.gameID
-      // };
-
-      // // ? for  lclb.net
-      // const postData = {
-      //   home_url: "https://jstlive.net",
-      //   token: "c7fae069ce61bcd3bda9a8dfe330a83a",
-      //   username: username+"45",
-      //   money: money,
-      //   gameid: req.body.gameID
-      // };
-
-      console.log("this is log ");
-
-      // // ? for  babu666.live
-      // const postData = {
-      //   home_url: "https://babu666.live",
-      //   token: "25034d2094f6312bd0e49f713efb5e45",
-      //   username: username + "45",
-      //   money: money,
-      //   gameid: req.body.gameID,
-      // };
-
-      // ? for  malta99.com
-      // https://api.malta99.com/games/callback-data-game
-      // const postData = {
-      //   home_url: "https://malta99.com",
-      //   token: "846fd1fb8e07fa445eae69ddaa633db4",
-      //   username: username + "45", // roni
-      //   money: money,
-      //   gameid: req.body.gameID,
-      // };
-
-      // x-dstgame-key
-      // 'x-dstgame-key: yourlicensekey'
-
-      console.log("Sending POST request to joyhobe.com with data:", postData);
-
-      // POST রিকোয়েস্ট
+      const gatewayUrl =
+        "https://live-casino-slots-evolution-jili-and-50-plus-provider.p.rapidapi.com/casino/getgameurl";
       const response = await axios.post(
-        // "https://dstplay.net/getgameurl",
-        "https://crazybet99.com/getgameurl",
-        qs.stringify(postData),
+        gatewayUrl,
+        postData,
         {
           headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-            "x-dstgame-key": postData.token,
+            "Content-Type": "application/json",
+            "x-rapidapi-key": apiKey,
+            "x-rapidapi-host":
+              "live-casino-slots-evolution-jili-and-50-plus-provider.p.rapidapi.com",
           },
+          timeout: 30000,
         }
       );
 
-      console.log(
-        "Response from dstplay.com:",
-        response.data,
-        "Status:",
-        response.status
-      );
       res.status(200).json({
-        message: "POST request successful",
+        message: "Game link request successful",
         joyhobeResponse: response.data,
       });
     } catch (error) {
-      console.error("Error in POST /api/test/game:", error);
-      res.status(500).json({
-        error: "Failed to forward POST request",
-        details: error.message,
+      console.error(
+        "Error fetching game link:",
+        error.response?.status || "",
+        error.message
+      );
+      res.status(error.response?.status || 502).json({
+        error: "Failed to fetch game link",
+        details: error.response?.data || error.message,
       });
     }
   });

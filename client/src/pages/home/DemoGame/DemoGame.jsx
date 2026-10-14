@@ -116,24 +116,30 @@ const DemoGame = () => {
           `${import.meta.env.VITE_BASE_API_URL}/games/getGameLink`,
           {
             method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              gameID: gameUUID,
-              money: parseInt(userData?.balance || 0, 10),
-              username: user?.username,
-            }),
           }
         );
+        const data = await response.json().catch(() => ({}));
         if (!response.ok) {
-          throw new Error("Failed to fetch game link");
+          throw new Error(
+            data?.error || data?.details || "Failed to fetch game link"
+          );
         }
-        const data = await response.json();
 
         console.log(data);
 
-        const link = data?.joyhobeResponse;
+        const payload = data?.joyhobeResponse ?? data?.data;
+        const link =
+          typeof payload === "string"
+            ? payload
+            : payload?.url ||
+              payload?.gameUrl ||
+              payload?.game_url ||
+              payload?.gameLink ||
+              payload?.link ||
+              payload?.data?.url ||
+              payload?.data?.gameUrl ||
+              payload?.data?.game_url ||
+              payload?.data?.link;
         if (link) {
           setGameLink(link);
         } else {
