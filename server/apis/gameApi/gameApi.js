@@ -1029,6 +1029,15 @@ const gameApi = (
   // Get a game launch URL from the Betnex RapidAPI provider.
   router.post("/getGameLink", async (req, res) => {
     try {
+      const requestedGameId = String(
+        req.body?.gameID || req.body?.gameId || ""
+      ).trim();
+      if (!requestedGameId || requestedGameId.length > 200) {
+        return res.status(400).json({
+          error: "A valid provider game ID is required.",
+        });
+      }
+
       const apiKey = process.env.RAPIDAPI_KEY;
       if (!apiKey) {
         return res.status(503).json({
@@ -1039,7 +1048,9 @@ const gameApi = (
       const postData = {
         // Use the supplied sandbox identity unless the server is configured otherwise.
         username: process.env.BETNEX_USERNAME || "testus3r4er01",
-        gameId: process.env.BETNEX_GAME_ID || "874c49d5d915de9b82f66088f9794789",
+        // The Oracle game_uuid is forwarded as Betnex gameId. No global fallback
+        // is allowed because it would launch the wrong game for other cards.
+        gameId: requestedGameId,
         lang: "en",
         // The provider explicitly disallows balance passing in its test environment.
         money: 0,

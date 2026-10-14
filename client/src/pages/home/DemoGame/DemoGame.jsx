@@ -90,13 +90,21 @@ const DemoGame = () => {
           `${import.meta.env.VITE_BASE_API_URL}/games/premium/${id}`
         );
         const data = await res.json();
+        if (!res.ok) {
+          throw new Error(
+            data?.message || `Provider game lookup failed (HTTP ${res.status}).`
+          );
+        }
         if (data.success && data.game_uuid) {
           setGameUUID(data.game_uuid);
         } else {
-          setError("Game UUID not found");
+          setError("The provider did not return a game UUID for this game.");
         }
-      } catch {
-        setError("Failed to fetch game UUID");
+      } catch (lookupError) {
+        console.error("Error resolving provider game UUID:", lookupError);
+        setError(
+          lookupError.message || "Failed to resolve this game with the provider."
+        );
       }
     };
     fetchGameUUID();
@@ -116,6 +124,14 @@ const DemoGame = () => {
           `${import.meta.env.VITE_BASE_API_URL}/games/getGameLink`,
           {
             method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              gameID: gameUUID,
+              // The Betnex test environment uses its configured sandbox user
+              // and rejects balance passing; keep this explicitly zero.
+              money: 0,
+              username: user?.username,
+            }),
           }
         );
         const data = await response.json().catch(() => ({}));
@@ -139,7 +155,9 @@ const DemoGame = () => {
               payload?.data?.url ||
               payload?.data?.gameUrl ||
               payload?.data?.game_url ||
-              payload?.data?.link;
+              payload?.data?.link ||
+              payload?.payload?.game_launch_url ||
+              payload?.payload?.gameLaunchUrl;
         if (link) {
           setGameLink(link);
         } else {
