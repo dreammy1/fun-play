@@ -15,7 +15,7 @@ const DemoGame = () => {
   const [gameLink, setGameLink] = useState(null);
   const [error, setError] = useState(null);
   const [orientation, setOrientation] = useState("landscape");
-  const [isUserDataFetched, setIsUserDataFetched] = useState(false);
+  const [isUserDataFetched, setIsUserDataFetched] = useState(true);
   const [isGameLinkFetched, setIsGameLinkFetched] = useState(false);
   // Removed conditional loader states; using only a fixed intro loader
   const [introLoading, setIntroLoading] = useState(true); // unconditional 2s intro loader
@@ -126,8 +126,6 @@ const DemoGame = () => {
             body: JSON.stringify({
               gameID: gameUUID,
               oracleGameId: id,
-              // The Betnex test environment uses its configured sandbox user
-              // and rejects balance passing; keep this explicitly zero.
               money: 500,
               username: user?.username,
             }),
@@ -192,7 +190,7 @@ const DemoGame = () => {
               Loading Game
             </h2>
             <p className="text-lg font-semibold text-blue-600">
-              www.oracleapi.net
+              www.babu88.oracleapi.net
             </p>
             <p className="mt-2 text-lg font-semibold text-blue-600">
               গেম লোড হচ্ছে অপেক্ষা করুন...
