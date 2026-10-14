@@ -1,5 +1,5 @@
 import { useParams } from "react-router-dom";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useSelector } from "react-redux";
 import { useGetGamesQuery } from "@/redux/features/allApis/gameApi/gameApi";
 import { useLazyGetUserByIdQuery } from "@/redux/features/allApis/usersApi/usersApi";
@@ -20,8 +20,6 @@ const DemoGame = () => {
   // Removed conditional loader states; using only a fixed intro loader
   const [introLoading, setIntroLoading] = useState(true); // unconditional 2s intro loader
   const [showSpinner, setShowSpinner] = useState(false); // backend-controlled visual (default to text until fetched)
-  const videoRef = useRef(null);
-
   // Remove selectedGame logic for gameID, use game_uuid from backend
   const [gameUUID, setGameUUID] = useState(null);
 
@@ -142,8 +140,6 @@ const DemoGame = () => {
           );
         }
 
-        console.log(data);
-
         const payload = data?.joyhobeResponse ?? data?.data;
         const link =
           typeof payload === "string"
@@ -161,6 +157,9 @@ const DemoGame = () => {
               payload?.payload?.gameLaunchUrl;
         if (link) {
           setGameLink(link);
+          // Betnex sends frame-ancestors that exclude this admin origin. Open
+          // the signed launch URL as a top-level page instead of using an iframe.
+          window.location.assign(link);
         } else {
           throw new Error("Game link not found in response");
         }
@@ -298,15 +297,20 @@ const DemoGame = () => {
     >
       {/* Inline CSS for Loaders */}
 
-      {/* Iframe */}
-      <iframe
-        ref={videoRef}
-        className="w-full h-full fixed inset-0 flex items-center justify-center bg-gradient-to-b from-white to-gray-100 z-50"
-        src={gameLink}
-        frameBorder="0"
-        title={id}
-        allowFullScreen
-      ></iframe>
+      {/* Betnex launch URLs cannot be framed by this origin. The request effect
+          navigates to the signed URL; this is a safe fallback if navigation is
+          delayed or disabled by the browser. */}
+      <div className="w-full h-full fixed inset-0 flex flex-col gap-4 items-center justify-center bg-gradient-to-b from-white to-gray-100 z-40">
+        <p className="text-gray-700 font-semibold">Opening game…</p>
+        {gameLink && (
+          <a
+            href={gameLink}
+            className="rounded bg-blue-600 px-5 py-3 font-semibold text-white"
+          >
+            Open game
+          </a>
+        )}
+      </div>
 
       {/* Professional Loading Overlay */}
       {introLoading && (
