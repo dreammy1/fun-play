@@ -2,29 +2,23 @@ import { useParams } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { useSelector } from "react-redux";
 import { useGetGamesQuery } from "@/redux/features/allApis/gameApi/gameApi";
-import { useLazyGetUserByIdQuery } from "@/redux/features/allApis/usersApi/usersApi";
 
 const DemoGame = () => {
   const { id } = useParams();
   const {
-    data: games,
     isLoading: isGamesLoading,
     isError: isGamesError,
   } = useGetGamesQuery();
-  const { user } = useSelector((state) => state.auth);
+  const { token } = useSelector((state) => state.auth);
   const [gameLink, setGameLink] = useState(null);
   const [error, setError] = useState(null);
-  const [orientation, setOrientation] = useState("landscape");
-  const [isUserDataFetched, setIsUserDataFetched] = useState(true);
+  const orientation = "landscape";
   const [isGameLinkFetched, setIsGameLinkFetched] = useState(false);
   // Removed conditional loader states; using only a fixed intro loader
   const [introLoading, setIntroLoading] = useState(true); // unconditional 2s intro loader
   const [showSpinner, setShowSpinner] = useState(false); // backend-controlled visual (default to text until fetched)
   // Remove selectedGame logic for gameID, use game_uuid from backend
   const [gameUUID, setGameUUID] = useState(null);
-
-  const [triggerGetUserById, { data: userData, isError: isUserError }] =
-    useLazyGetUserByIdQuery();
 
   // (Removed conditional iframe loader checks and logging; using simple intro loader instead)
 
@@ -66,19 +60,6 @@ const DemoGame = () => {
   //   return () => window.removeEventListener("resize", updateOrientation);
   // }, []);
 
-  // Fetch user data when user is available
-  useEffect(() => {
-    if (user?._id) {
-      console.log("Fetching user data for ID:", user._id);
-      triggerGetUserById(user._id);
-    }
-  }, [user, triggerGetUserById]);
-
-  // Update user data fetch status
-  useEffect(() => {
-    setIsUserDataFetched(true);
-  }, [userData]);
-
   // Fetch game_uuid from backend using id param
   useEffect(() => {
     const fetchGameUUID = async () => {
@@ -108,26 +89,28 @@ const DemoGame = () => {
     fetchGameUUID();
   }, [id]);
 
-  // Fetch game link when userData and gameUUID are available
+  // The server derives the player and current wallet balance from this token.
   useEffect(() => {
-    console.log("this is fetch ");
-
     const fetchGameLink = async () => {
-      if (!gameUUID || !userData) return;
+      if (!gameUUID) return;
+      if (!token) {
+        setError("Please sign in before opening a real-money game.");
+        setIsGameLinkFetched(true);
+        return;
+      }
       setError(null);
       try {
-        console.log("this is inside ");
-
         const response = await fetch(
           `${import.meta.env.VITE_BASE_API_URL}/games/getGameLink`,
           {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
             body: JSON.stringify({
               gameID: gameUUID,
               oracleGameId: id,
-              money: 500,
-              username: user?.username,
             }),
           }
         );
@@ -168,10 +151,10 @@ const DemoGame = () => {
         setIsGameLinkFetched(true);
       }
     };
-    if (gameUUID && userData) {
+    if (gameUUID) {
       fetchGameLink();
     }
-  }, [gameUUID, userData, user]);
+  }, [gameUUID, token, id]);
 
   // (Removed cross-origin loader probing; no conditional loader logic)
 
@@ -259,13 +242,13 @@ const DemoGame = () => {
     );
   }
 
-  // Show error only after user data or game link fetch fails
-  if ((isUserError && isUserDataFetched) || (error && isGameLinkFetched)) {
+  // Show errors only after the authenticated launch request has completed.
+  if (error && isGameLinkFetched) {
     return (
       <div className="flex items-center justify-center bg-gray-100 h-[100vh]">
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-md shadow-md">
           <p className="font-semibold">একটি ত্রুটি ঘটেছে!</p>
-          <p className="text-sm">{error || "Failed to fetch user data"}</p>
+          <p className="text-sm">{error}</p>
         </div>
       </div>
     );
