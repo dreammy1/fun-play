@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 
 const ReferBonus = () => {
   const [amount, setAmount] = useState(0);
@@ -13,7 +13,7 @@ const ReferBonus = () => {
     const fetchConfig = async () => {
       try {
         const res = await fetch(
-          `${import.meta.env.VITE_BASE_API_URL}/users/public/refer-bonus`
+          `${import.meta.env.VITE_BASE_API_URL}/users/admin/refer-bonus`
         );
         const data = await res.json();
         if (data.success && data.bonus) {
@@ -58,7 +58,7 @@ const ReferBonus = () => {
       } else {
         setMessage(data.message || "Failed to update bonus.");
       }
-    } catch (err) {
+    } catch {
       setMessage("Server error. Try again.");
     } finally {
       setLoading(false);

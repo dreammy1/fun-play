@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import { FaPlus, FaTrash, FaEdit, FaSpinner, FaTimes } from "react-icons/fa";
 import ReactQuill from "react-quill";
@@ -116,9 +115,9 @@ const RichTextEditor = ({
 );
 
 const AddDepositMethods = () => {
-  const navigate = useNavigate();
   const [depositMethods, setDepositMethods] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editId, setEditId] = useState(null);
   const [formData, setFormData] = useState({
@@ -175,7 +174,7 @@ const AddDepositMethods = () => {
         const data = await response.json();
         setDepositMethods(data.data);
         setLoading(false);
-      } catch (error) {
+      } catch {
         toast.error("Failed to load deposit methods.", {
           position: "top-right",
         });
@@ -211,7 +210,7 @@ const AddDepositMethods = () => {
       const data = await response.json();
       setFormData({ ...formData, [field]: data.filePath });
       toast.success("Image uploaded successfully!", { position: "top-right" });
-    } catch (error) {
+    } catch {
       toast.error("Failed to upload image.", { position: "top-right" });
     }
   };
@@ -300,6 +299,7 @@ const AddDepositMethods = () => {
   // Handle form submission (Create or Update)
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (saving) return;
     if (
       instructionENCharCount > maxLength ||
       instructionBDCharCount > maxLength
@@ -310,6 +310,7 @@ const AddDepositMethods = () => {
       return;
     }
 
+    setSaving(true);
     try {
       const url = isEditMode
         ? `${
@@ -319,41 +320,40 @@ const AddDepositMethods = () => {
             import.meta.env.VITE_BASE_API_URL
           }/depositPaymentMethod/deposit-method`;
       const method = isEditMode ? "PUT" : "POST";
-
-      let urlLink = url;
-
-      const response = await fetch(urlLink, {
+      const response = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
       });
 
-      if (!response.ok)
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
         throw new Error(
-          `Failed to ${isEditMode ? "update" : "create"} deposit method`
+          data.error ||
+            data.message ||
+            `Failed to ${isEditMode ? "update" : "create"} deposit method`
         );
-      const data = await response.json();
+      }
 
       if (isEditMode) {
-        setDepositMethods(
-          depositMethods.map((method) =>
+        setDepositMethods((methods) =>
+          methods.map((method) =>
             method._id === editId ? { _id: editId, ...data.data } : method
           )
         );
       } else {
-        setDepositMethods([...depositMethods, data.data]);
+        setDepositMethods((methods) => [...methods, data.data]);
       }
 
       toast.success(data.message, { position: "top-right" });
       resetForm();
       setShowForm(false);
     } catch (error) {
-      toast.error(
-        isEditMode
-          ? "Failed to update deposit method."
-          : "Failed to create deposit method.",
-        { position: "top-right" }
-      );
+      toast.error(error.message || "Failed to save deposit method.", {
+        position: "top-right",
+      });
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -371,7 +371,7 @@ const AddDepositMethods = () => {
       setEditId(id);
       setIsEditMode(true);
       setShowForm(true);
-    } catch (error) {
+    } catch {
       toast.error("Failed to load deposit method.", { position: "top-right" });
     }
   };
@@ -388,7 +388,9 @@ const AddDepositMethods = () => {
           paymentPageImage &&
             (await deleteImage(paymentPageImage.split("/").pop()));
           methodImage && (await deleteImage(methodImage.split("/").pop()));
-        } catch (err) {}
+        } catch (error) {
+          console.warn("Failed to delete deposit method images", error);
+        }
       }
 
       try {
@@ -403,7 +405,7 @@ const AddDepositMethods = () => {
         toast.success("Deposit method deleted successfully.", {
           position: "top-right",
         });
-      } catch (error) {
+      } catch {
         toast.error("Failed to delete deposit method.", {
           position: "top-right",
         });
@@ -806,10 +808,17 @@ const AddDepositMethods = () => {
               </button>
               <button
                 type="submit"
+                disabled={saving}
                 className="flex items-center px-4 py-2 bg-gradient-to-r from-green-600 to-green-500 text-white rounded-lg hover:from-green-700 hover:to-green-600 transition duration-200 shadow-sm"
               >
-                <FaPlus className="mr-2" /> {isEditMode ? "Update" : "Create"}{" "}
-                Deposit Method
+                {saving ? (
+                  <FaSpinner className="mr-2 animate-spin" />
+                ) : (
+                  <FaPlus className="mr-2" />
+                )}
+                {saving
+                  ? "Saving..."
+                  : `${isEditMode ? "Update" : "Create"} Deposit Method`}
               </button>
             </div>
           </form>

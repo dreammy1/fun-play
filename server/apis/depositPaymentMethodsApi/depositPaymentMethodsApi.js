@@ -33,7 +33,6 @@ const createDepositPaymentMethodsApi = (depositPaymentMethodCollection) => {
         !methodNameBD ||
         !agentWalletNumber ||
         !agentWalletText ||
-        !methodImage ||
         !backgroundColor ||
         !color ||
         !buttonColor
@@ -49,7 +48,7 @@ const createDepositPaymentMethodsApi = (depositPaymentMethodCollection) => {
         methodNameBD,
         agentWalletNumber,
         agentWalletText,
-        methodImage,
+        methodImage: methodImage || "",
         gateway: gateway || [],
         color: color || "",
         userInputs: userInputs || [],
@@ -151,7 +150,6 @@ const createDepositPaymentMethodsApi = (depositPaymentMethodCollection) => {
         !methodNameBD ||
         !agentWalletNumber ||
         !agentWalletText ||
-        !methodImage ||
         !backgroundColor ||
         !color ||
         !buttonColor
@@ -167,7 +165,7 @@ const createDepositPaymentMethodsApi = (depositPaymentMethodCollection) => {
         methodNameBD,
         agentWalletNumber,
         agentWalletText,
-        methodImage,
+        methodImage: methodImage || "",
         gateway: gateway || [],
         color: color || "",
         userInputs: userInputs || [],

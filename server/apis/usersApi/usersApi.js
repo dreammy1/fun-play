@@ -88,6 +88,18 @@ const usersApi = (
     }
   });
 
+  // Admin reads must include inactive configs so the dashboard can edit them.
+  router.get("/admin/refer-bonus", async (req, res) => {
+    try {
+      const bonus = await req.app.locals.db
+        .collection("settings")
+        .findOne({ type: "refer_bonus" });
+      res.json({ success: true, bonus });
+    } catch (err) {
+      res.status(500).json({ success: false, message: "DB error" });
+    }
+  });
+
   // Admin: Set or update welcome bonus (amount, active)
   // Admin: Set or update refer bonus (amount, active)
   router.post("/admin/set-refer-bonus", async (req, res) => {
@@ -140,6 +152,17 @@ const usersApi = (
     const user = await usersCollection.findOne({ referId });
     if (!user) return res.status(404).json({ error: "Refer user not found" });
     res.json({ success: true, user });
+  });
+
+  router.get("/admin/welcome-bonus", async (req, res) => {
+    try {
+      const bonus = await req.app.locals.db
+        .collection("settings")
+        .findOne({ type: "welcome_bonus" });
+      res.json({ success: true, bonus });
+    } catch (err) {
+      res.status(500).json({ success: false, message: "DB error" });
+    }
   });
 
   router.post("/admin/set-welcome-bonus", async (req, res) => {
