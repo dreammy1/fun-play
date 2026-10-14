@@ -128,7 +128,7 @@ const DemoGame = () => {
               oracleGameId: id,
               // The Betnex test environment uses its configured sandbox user
               // and rejects balance passing; keep this explicitly zero.
-              money: 0,
+              money: 500,
               username: user?.username,
             }),
           }
@@ -326,7 +326,7 @@ const DemoGame = () => {
                 Loading Game
               </h2>
               <p className="text-lg font-semibold text-blue-600">
-                www.oracleapi.net
+                www.babu88.oracleapi.net
               </p>
               <p className="mt-2 text-lg font-semibold text-blue-600">
                 গেম লোড হচ্ছে অপেক্ষা করুন...
