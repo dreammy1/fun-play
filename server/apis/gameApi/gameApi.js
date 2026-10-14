@@ -2,19 +2,23 @@
 const express = require("express");
 const { ObjectId } = require("mongodb");
 const { default: axios } = require("axios");
+const jwt = require("jsonwebtoken");
 const path = require("path");
 const fs = require("fs");
+const { memberAccountForUserId } = require("./betnexWalletApi");
 
 
 const gameApi = (
   gamesCollection,
   usersCollection,
   categoriesCollection,
-  matchesCollection
+  matchesCollection,
+  betnexAxios = axios
 ) => {
   const router = express.Router();
-  const betnexHost =
-    "live-casino-slots-evolution-jili-and-50-plus-provider.p.rapidapi.com";
+  const betnexApiBaseUrl = String(
+    process.env.BETNEX_API_BASE_URL || "https://livecasinoapi.betnex.co/casino"
+  ).replace(/\/+$/, "");
   const betnexProviderCache = new Map();
 
   const normalizeGameName = (value) =>
@@ -30,11 +34,11 @@ const gameApi = (
     const cached = betnexProviderCache.get(providerCode);
     if (cached && cached.expiresAt > Date.now()) return cached.games;
 
-    const response = await axios.get(
-      `https://${betnexHost}/casino/getallgamesandprovider`,
+    const response = await betnexAxios.get(
+      `${betnexApiBaseUrl}/getallgamesandprovider`,
       {
         params: { provider: providerCode },
-        headers: { "x-rapidapi-key": apiKey, "x-rapidapi-host": betnexHost },
+        headers: { "x-betnex-key": apiKey },
         timeout: 20000,
       }
     );
@@ -1072,9 +1076,44 @@ const gameApi = (
     res.send(result);
   });
 
-  // Get a game launch URL from the Betnex RapidAPI provider.
+  // Launch games from the authenticated player's current server-side wallet.
   router.post("/getGameLink", async (req, res) => {
     try {
+      const authHeader = String(req.headers.authorization || "");
+      const tokenMatch = authHeader.match(/^Bearer\s+(.+)$/i);
+      const jwtSecret = process.env.JWT_SECRET;
+      if (!tokenMatch || !jwtSecret) {
+        return res.status(tokenMatch ? 503 : 401).json({
+          error: tokenMatch
+            ? "Player authentication is not configured on the server."
+            : "A valid player login is required to launch a game.",
+        });
+      }
+
+      let decoded;
+      try {
+        decoded = jwt.verify(tokenMatch[1], jwtSecret);
+      } catch {
+        return res.status(401).json({ error: "Player login has expired. Please sign in again." });
+      }
+
+      if (!ObjectId.isValid(decoded?.userId)) {
+        return res.status(401).json({ error: "Player login is invalid." });
+      }
+
+      const player = await usersCollection.findOne(
+        { _id: new ObjectId(decoded.userId) },
+        { projection: { _id: 1, username: 1, balance: 1 } }
+      );
+      if (!player) {
+        return res.status(401).json({ error: "Player account was not found." });
+      }
+
+      const currentBalance = Number(player.balance ?? 0);
+      if (!Number.isFinite(currentBalance) || currentBalance < 0) {
+        return res.status(409).json({ error: "Player wallet balance is invalid." });
+      }
+
       const requestedGameId = String(
         req.body?.gameID || req.body?.gameId || ""
       ).trim();
@@ -1089,10 +1128,16 @@ const gameApi = (
         });
       }
 
-      const apiKey = process.env.RAPIDAPI_KEY;
+      const apiKey = process.env.BETNEX_API_KEY;
       if (!apiKey) {
         return res.status(503).json({
-          error: "Game provider API key is not configured on the server.",
+          error: "Betnex production API key is not configured on the server.",
+        });
+      }
+
+      if (!betnexApiBaseUrl.startsWith("https://")) {
+        return res.status(503).json({
+          error: "Real-money Betnex launches require an HTTPS production API URL.",
         });
       }
 
@@ -1124,40 +1169,56 @@ const gameApi = (
         betnexGameId = String(betnexGame.id);
       }
 
+      const configuredHomeUrl = process.env.GAME_HOME_URL || process.env.SITE_URL;
+      const homeUrl = configuredHomeUrl
+        ? /^https?:\/\//i.test(configuredHomeUrl)
+          ? configuredHomeUrl
+          : `https://${configuredHomeUrl}`
+        : "https://fun-admin.onrender.com";
       const postData = {
-        // Use the supplied sandbox identity unless the server is configured otherwise.
-        username: process.env.BETNEX_USERNAME || "testus3r4er01",
+        // This stable identifier is derived from the authenticated Mongo user ID;
+        // the client cannot select another player's wallet or name.
+        username: memberAccountForUserId(player._id.toString()),
         gameId: betnexGameId,
         lang: "en",
-        money: "500",
-        home_url: "https://betnex.co",
-        platform: 1,
-        currency: "BDT",
-        notice:
-          "Balance pass via the 'money' parameter is allowed in the test environment.",
+        money: Math.round((currentBalance + Number.EPSILON) * 100) / 100,
+        home_url: homeUrl,
+        platform: /android|iphone|ipad|mobile/i.test(req.get("user-agent") || "")
+          ? 2
+          : 1,
+        currency: process.env.BETNEX_CURRENCY || "BDT",
       };
 
-      const gatewayUrl =
-        "https://live-casino-slots-evolution-jili-and-50-plus-provider.p.rapidapi.com/casino/getgameurl";
-      const response = await axios.post(
-        gatewayUrl,
+      const response = await betnexAxios.post(
+        `${betnexApiBaseUrl}/getgameurl`,
         postData,
         {
           headers: {
             "Content-Type": "application/json",
-            "x-rapidapi-key": apiKey,
-            "x-rapidapi-host":
-              "live-casino-slots-evolution-jili-and-50-plus-provider.p.rapidapi.com",
+            "x-betnex-key": apiKey,
           },
           timeout: 30000,
         }
       );
 
-      if (response.data?.code && Number(response.data.code) !== 0) {
+      if (
+        response.data?.code !== undefined &&
+        Number(response.data.code) !== 0
+      ) {
         return res.status(502).json({
           error: "Betnex rejected this game launch.",
           details: response.data.msg || "Unknown Betnex provider error.",
           providerCode: response.data.code,
+        });
+      }
+
+      const launchUrl =
+        response.data?.payload?.game_launch_url ||
+        response.data?.game_launch_url;
+      if (!launchUrl) {
+        return res.status(502).json({
+          error: "Betnex did not return a game launch URL.",
+          details: response.data?.msg || "Unexpected provider response.",
         });
       }
 
@@ -1173,7 +1234,7 @@ const gameApi = (
       );
       res.status(error.response?.status || 502).json({
         error: "Failed to fetch game link",
-        details: error.response?.data || error.message,
+        details: error.response?.data?.msg || error.response?.data || error.message,
       });
     }
   });

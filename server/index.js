@@ -27,6 +27,7 @@ const withdrawPaymentMethodApi = require("./apis/withdrawPaymentMethodApi/withdr
 const withdrawTransactionsApi = require("./apis/withdrawTransactionsApi/withdrawTransactionsApi");
 
 const gameApi = require("./apis/gameApi/gameApi");
+const { betnexWalletApi } = require("./apis/gameApi/betnexWalletApi");
 const adminDashboardApi = require("./apis/adminDashboardApi/adminDashboardApi");
 const featuresImageApi = require("./apis/featuresImageApi/featuresImageApi");
 const themeColorApi = require("./apis/themeColorApi/themeColorApi");
@@ -132,7 +133,15 @@ const corsConfig = {
 // Middlewares
 app.use(cors(corsConfig));
 app.options("", cors(corsConfig));
-app.use(express.json());
+app.use(
+  express.json({
+    verify: (req, res, buffer) => {
+      if (req.originalUrl?.startsWith("/games/betnex/callback")) {
+        req.rawBody = Buffer.from(buffer);
+      }
+    },
+  })
+);
 // Parse FormData
 app.use(express.urlencoded({ extended: true }));
 // MongoDB setup
@@ -219,6 +228,13 @@ async function run() {
       .collection("depositTransactions");
     const gamesCollection = client.db("babu88").collection("games");
     const matchesCollection = client.db("babu88").collection("matches");
+    const betnexTransactionsCollection = client
+      .db("babu88")
+      .collection("betnexTransactions");
+    await betnexTransactionsCollection.createIndex(
+      { serialNumber: 1 },
+      { unique: true, name: "betnex_serial_number_unique" }
+    );
 
     const featuresImageCollection = client
       .db("babu88")
@@ -350,6 +366,10 @@ async function run() {
     // Opay API
     app.use("/opay", opayApi(settingsCollection));
 
+    app.use(
+      "/games/betnex",
+      betnexWalletApi(usersCollection, betnexTransactionsCollection, client)
+    );
     app.use(
       "/games",
       gameApi(
