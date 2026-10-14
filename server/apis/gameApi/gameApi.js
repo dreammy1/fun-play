@@ -1134,7 +1134,7 @@ const gameApi = (
         platform: 1,
         currency: "BDT",
         notice:
-          "Balance pass via the 'money' parameter is not allowed in the test environment. Please contact the Betnex team via https://www.betnex.co for production details and access.",
+          "Balance pass via the 'money' parameter is allowed in the test environment.",
       };
 
       const gatewayUrl =
