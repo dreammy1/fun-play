@@ -1129,8 +1129,7 @@ const gameApi = (
         username: process.env.BETNEX_USERNAME || "testus3r4er01",
         gameId: betnexGameId,
         lang: "en",
-        // The provider explicitly disallows balance passing in its test environment.
-        money: 0,
+        money: "500",
         home_url: "https://betnex.co",
         platform: 1,
         currency: "BDT",
