@@ -39,19 +39,24 @@ const Deposit = () => {
   })();
 
   const { mainColor, backgroundColor } = useSelector((state) => state.themeColor);
-  const { user } = useSelector((state) => state.auth);
+  const { user, token } = useSelector((state) => state.auth);
+  const depositApiBase = (
+    import.meta.env.VITE_DEPOSIT_API_BASE_URL ||
+    import.meta.env.VITE_BASE_API_URL ||
+    ""
+  ).replace(/\/+$/, "");
 
   // Fetch data on component mount
   useEffect(() => {
     const fetchData = async () => {
       try {
         const paymentMethodsRes = await axios.get(
-          `${import.meta.env.VITE_BASE_API_URL}/depositPaymentMethod/deposit-methods`
+          `${depositApiBase}/depositPaymentMethod/deposit-methods/active`
         );
         setPaymentMethods(paymentMethodsRes.data.data);
 
         const promotionsRes = await axios.get(
-          `${import.meta.env.VITE_BASE_API_URL}/depositPromotions/deposit-promotions`
+          `${depositApiBase}/depositPromotions/deposit-promotions`
         );
         setPromotions(promotionsRes.data.data);
         try {
@@ -65,7 +70,7 @@ const Deposit = () => {
       }
     };
     fetchData();
-  }, []);
+  }, [depositApiBase]);
 
   // Presence socket: listen for device updates when apiKey exists
   useEffect(() => {
@@ -308,7 +313,7 @@ const Deposit = () => {
           const fileFormData = new FormData();
           fileFormData.append("image", value);
           const uploadResponse = await fetch(
-            `${import.meta.env.VITE_BASE_API_URL}/upload`,
+            `${depositApiBase}/upload`,
             {
               method: "POST",
               body: fileFormData,
@@ -371,12 +376,14 @@ const Deposit = () => {
 
       // Step 3: Create FormData for transaction
       const response = await fetch(
-        `${import.meta.env.VITE_BASE_API_URL}/depositTransactions/create`,
+        `${depositApiBase}/depositTransactions/create`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token || ""}`,
+          },
           body: JSON.stringify({
-            userId: user?._id,
             paymentMethodId: selectedPaymentMethod._id,
             amount,
             promotionId: selectedOption
@@ -504,7 +511,7 @@ const Deposit = () => {
                   }`}
                 >
                   <img
-                    src={`${import.meta.env.VITE_BASE_API_URL}${
+                    src={`${depositApiBase}${
                       method.methodImage
                     }`}
                     alt={method.methodNameBD}
@@ -742,7 +749,7 @@ const Deposit = () => {
                 </div>
                 <img
                   className="w-full h-48 md:h-64 object-contain rounded-lg"
-                  src={`${import.meta.env.VITE_BASE_API_URL}${
+                  src={`${depositApiBase}${
                     selectedPaymentMethod.paymentPageImage
                   }`}
                   alt={selectedPaymentMethod.methodNameBD}

@@ -1,8 +1,8 @@
 const express = require("express");
-const router = express.Router();
 const { ObjectId } = require("mongodb");
 
 const createDepositPaymentMethodsApi = (depositPaymentMethodCollection) => {
+  const router = express.Router();
  // // console.log("this is inside the api");
 
   // POST: Create a new deposit payment method
@@ -89,6 +89,27 @@ const createDepositPaymentMethodsApi = (depositPaymentMethodCollection) => {
       });
     } catch (error) {
       console.error("Error retrieving deposit methods:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // GET: Retrieve only enabled methods for the customer deposit form.
+  // Older records without a status remain visible, matching their historical behavior.
+  router.get("/deposit-methods/active", async (req, res) => {
+    try {
+      const allMethods = await depositPaymentMethodCollection.find({}).toArray();
+      const depositMethods = allMethods.filter(
+        (method) =>
+          method.status == null ||
+          method.status === true ||
+          String(method.status).toLowerCase() === "active"
+      );
+      res.status(200).json({
+        message: "Active deposit methods retrieved successfully",
+        data: depositMethods,
+      });
+    } catch (error) {
+      console.error("Error retrieving active deposit methods:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   });

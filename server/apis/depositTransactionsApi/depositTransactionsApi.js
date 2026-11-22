@@ -1,7 +1,7 @@
 const express = require("express");
 const path = require("path");
+const jwt = require("jsonwebtoken");
 
-const router = express.Router();
 const { ObjectId } = require("mongodb");
 
 const fs = require("fs");
@@ -12,12 +12,39 @@ module.exports = (
   depositPaymentMethodCollection,
   depositPromotionsCollection
 ) => {
+  const router = express.Router();
   // Create a new deposit transaction
   router.post("/create", async (req, res) => {
     try {
-      // req.body থেকে টেক্সট ডেটা নেওয়া হচ্ছে
       const { userId, paymentMethodId, amount, promotionId, gateways } =
         req.body;
+      const authHeader = req.header("Authorization") || "";
+      const token = authHeader.startsWith("Bearer ")
+        ? authHeader.slice(7).trim()
+        : "";
+      if (!token) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      let authenticatedUserId;
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        if (!ObjectId.isValid(decoded.userId)) {
+          return res.status(401).json({ error: "Invalid customer token" });
+        }
+        authenticatedUserId = new ObjectId(decoded.userId);
+      } catch {
+        return res.status(401).json({ error: "Invalid or expired token" });
+      }
+
+      if (
+        userId &&
+        (!ObjectId.isValid(userId) ||
+          !new ObjectId(userId).equals(authenticatedUserId))
+      ) {
+        return res.status(403).json({ error: "Customer identity mismatch" });
+      }
+
       let userInputs = {};
 
       // userInputs পার্স করা
@@ -31,13 +58,12 @@ module.exports = (
         }
       }
 
-      // Validate inputs
+      const numericAmount = Number(amount);
       if (
-        !userId ||
         !paymentMethodId ||
-        !amount ||
-        isNaN(amount) ||
-        amount < 200
+        !ObjectId.isValid(paymentMethodId) ||
+        !Number.isFinite(numericAmount) ||
+        numericAmount < 200
       ) {
         return res
           .status(400)
@@ -45,7 +71,7 @@ module.exports = (
       }
 
       // Validate user
-      const user = await usersCollection.findOne({ _id: new ObjectId(userId) });
+      const user = await usersCollection.findOne({ _id: authenticatedUserId });
       if (!user) {
         return res.status(404).json({ error: "User not found" });
       }
@@ -57,10 +83,45 @@ module.exports = (
       if (!paymentMethod) {
         return res.status(404).json({ error: "Payment method not found" });
       }
+      if (
+        paymentMethod.status != null &&
+        paymentMethod.status !== true &&
+        String(paymentMethod.status).toLowerCase() !== "active"
+      ) {
+        return res.status(400).json({ error: "Payment method is inactive" });
+      }
+      const configuredGateways = Array.isArray(paymentMethod.gateway)
+        ? paymentMethod.gateway
+        : [];
+      if (!gateways || !configuredGateways.includes(gateways)) {
+        return res.status(400).json({ error: "Invalid payment channel" });
+      }
+
+      const requiredInputs = (paymentMethod.userInputs || []).filter(
+        (input) => input.isRequired === "true" || input.isRequired === true
+      );
+      const missingInput = requiredInputs.find((input) => {
+        const submitted = userInputs[input.name];
+        const value =
+          submitted &&
+          typeof submitted === "object" &&
+          Object.prototype.hasOwnProperty.call(submitted, "data")
+            ? submitted.data
+            : submitted;
+        return value == null || String(value).trim() === "";
+      });
+      if (missingInput) {
+        return res.status(400).json({
+          error: `Missing required field: ${missingInput.name}`,
+        });
+      }
 
       // Validate promotion (if provided)
       let promotion = null;
       if (promotionId) {
+        if (!ObjectId.isValid(promotionId)) {
+          return res.status(400).json({ error: "Invalid promotion ID" });
+        }
         promotion = await depositPromotionsCollection.findOne({
           _id: new ObjectId(promotionId),
         });
@@ -77,7 +138,7 @@ module.exports = (
       // Prepare transaction document
       const transaction = {
         id: new ObjectId().toString(), // নতুন ID জেনারেট করা
-        userId: new ObjectId(userId),
+        userId: authenticatedUserId,
         paymentMethod: {
           id: paymentMethod._id.toString(),
           methodNameBD: paymentMethod.methodNameBD,
@@ -104,7 +165,7 @@ module.exports = (
                 )?.bonus || null,
             }
           : null,
-        amount: parseFloat(amount),
+        amount: numericAmount,
         userInputs,
         status: "pending",
         createdAt: new Date().toISOString(),
