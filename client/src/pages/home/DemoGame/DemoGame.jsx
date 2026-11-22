@@ -89,12 +89,12 @@ const DemoGame = () => {
     fetchGameUUID();
   }, [id]);
 
-  // The server derives the player and current wallet balance from this token.
+  // The server derives a stable sandbox player identity from this token.
   useEffect(() => {
     const fetchGameLink = async () => {
       if (!gameUUID) return;
       if (!token) {
-        setError("Please sign in before opening a real-money game.");
+        setError("Please sign in before opening a sandbox game.");
         setIsGameLinkFetched(true);
         return;
       }

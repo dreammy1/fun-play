@@ -29,16 +29,22 @@ const sendJson = async (server, path, body, headers = {}) => {
   return { status: response.status, data: await response.json() };
 };
 
-test("game launch uses the authenticated user's current server-side balance", async () => {
+test("game launch uses Betnex sandbox and never sends the player's wallet balance", async () => {
   const userId = new ObjectId();
   const player = { _id: userId, username: "customer", balance: 123.45 };
   const previousEnv = {
     JWT_SECRET: process.env.JWT_SECRET,
+    BETNEX_TEST_API_KEY: process.env.BETNEX_TEST_API_KEY,
+    BETNEX_DEMO_BALANCE: process.env.BETNEX_DEMO_BALANCE,
+    BETNEX_TEST_CURRENCY: process.env.BETNEX_TEST_CURRENCY,
     BETNEX_API_KEY: process.env.BETNEX_API_KEY,
     BETNEX_API_BASE_URL: process.env.BETNEX_API_BASE_URL,
     BETNEX_CURRENCY: process.env.BETNEX_CURRENCY,
   };
   process.env.JWT_SECRET = "wallet-test-jwt";
+  process.env.BETNEX_TEST_API_KEY = "wallet-test-sandbox-key";
+  process.env.BETNEX_DEMO_BALANCE = "37.5";
+  process.env.BETNEX_TEST_CURRENCY = "INR";
   process.env.BETNEX_API_KEY = "wallet-test-provider-key";
   process.env.BETNEX_API_BASE_URL = "https://livecasinoapi.betnex.co/casino";
   process.env.BETNEX_CURRENCY = "BDT";
@@ -83,17 +89,20 @@ test("game launch uses the authenticated user's current server-side balance", as
     );
 
     assert.equal(result.status, 200);
-    assert.equal(launchRequest.url, "https://livecasinoapi.betnex.co/casino/getgameurl");
-    assert.equal(launchRequest.data.money, 123.45);
+    assert.equal(
+      launchRequest.url,
+      "http://livecasinoapi.betnex.co:8055/casino/getgameurl"
+    );
+    assert.equal(launchRequest.data.money, 37.5);
     assert.equal(
       launchRequest.data.username,
       memberAccountForUserId(userId.toString())
     );
     assert.equal(
       launchRequest.config.headers["x-betnex-key"],
-      "wallet-test-provider-key"
+      "wallet-test-sandbox-key"
     );
-    assert.equal(launchRequest.data.currency, "BDT");
+    assert.equal(launchRequest.data.currency, "INR");
   } finally {
     await close(server);
     for (const [key, value] of Object.entries(previousEnv)) {
