@@ -16,9 +16,9 @@ const gameApi = (
   betnexAxios = axios
 ) => {
   const router = express.Router();
-  const betnexApiBaseUrl = String(
-    process.env.BETNEX_API_BASE_URL || "https://livecasinoapi.betnex.co/casino"
-  ).replace(/\/+$/, "");
+  // Keep player launches on Betnex's test service. Test credentials and a
+  // sandbox balance are intentionally isolated from production wallet funds.
+  const betnexApiBaseUrl = "http://livecasinoapi.betnex.co:8055/casino";
   const betnexProviderCache = new Map();
 
   const normalizeGameName = (value) =>
@@ -1076,7 +1076,7 @@ const gameApi = (
     res.send(result);
   });
 
-  // Launch games from the authenticated player's current server-side wallet.
+  // Launch sandbox games for an authenticated player; never pass their deposit balance.
   router.post("/getGameLink", async (req, res) => {
     try {
       const authHeader = String(req.headers.authorization || "");
@@ -1103,15 +1103,10 @@ const gameApi = (
 
       const player = await usersCollection.findOne(
         { _id: new ObjectId(decoded.userId) },
-        { projection: { _id: 1, username: 1, balance: 1 } }
+        { projection: { _id: 1, username: 1 } }
       );
       if (!player) {
         return res.status(401).json({ error: "Player account was not found." });
-      }
-
-      const currentBalance = Number(player.balance ?? 0);
-      if (!Number.isFinite(currentBalance) || currentBalance < 0) {
-        return res.status(409).json({ error: "Player wallet balance is invalid." });
       }
 
       const requestedGameId = String(
@@ -1128,16 +1123,17 @@ const gameApi = (
         });
       }
 
-      const apiKey = process.env.BETNEX_API_KEY;
+      const apiKey = process.env.BETNEX_TEST_API_KEY;
       if (!apiKey) {
         return res.status(503).json({
-          error: "Betnex production API key is not configured on the server.",
+          error: "Betnex sandbox API key is not configured on the server.",
         });
       }
 
-      if (!betnexApiBaseUrl.startsWith("https://")) {
+      const demoBalance = Number(process.env.BETNEX_DEMO_BALANCE ?? 500);
+      if (!Number.isFinite(demoBalance) || demoBalance < 0) {
         return res.status(503).json({
-          error: "Real-money Betnex launches require an HTTPS production API URL.",
+          error: "Betnex demo balance must be a finite, non-negative number.",
         });
       }
 
@@ -1176,17 +1172,17 @@ const gameApi = (
           : `https://${configuredHomeUrl}`
         : "https://fun-admin.onrender.com";
       const postData = {
-        // This stable identifier is derived from the authenticated Mongo user ID;
-        // the client cannot select another player's wallet or name.
+        // The stable identity allows per-player test sessions without exposing
+        // the player's deposited balance to the sandbox.
         username: memberAccountForUserId(player._id.toString()),
         gameId: betnexGameId,
         lang: "en",
-        money: Math.round((currentBalance + Number.EPSILON) * 100) / 100,
+        money: Math.round((demoBalance + Number.EPSILON) * 100) / 100,
         home_url: homeUrl,
         platform: /android|iphone|ipad|mobile/i.test(req.get("user-agent") || "")
           ? 2
           : 1,
-        currency: process.env.BETNEX_CURRENCY || "BDT",
+        currency: process.env.BETNEX_TEST_CURRENCY || "INR",
       };
 
       const response = await betnexAxios.post(
